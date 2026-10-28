@@ -189,12 +189,14 @@ def _rhs(y, dy, mb, kc, nc, alpha, R, node_mass, contact_node, e_top, e_bot, e_p
 @njit(cache=True, parallel=True, nogil=True)
 def simulate_batch(mb, kc, nc, cor, R, v0, e_tf,
                    node_mass, contact_node, e_top, e_bot, e_par, e_h, l_kind, l_ref, pl_D, pl_reach,
-                   m2, m3, k2, c2, gain, k_nts, r_sil, dt, n_steps, decim):
+                   m2, m3, k2, c2, gain, k_nts, r_sil, dt, n_steps, decim, stop_frac, hold_steps):
     """Integrate N impacts (one per sample) with fixed-step RK4.
 
     Per-sample arrays: mb, kc, nc, cor, R, v0 (N,), e_tf (N, ne) temperature factors.
+    Early stop: once the ball has left, the load-cell force is below stop_frac x its maximum and
+    hold_steps have passed since that maximum, the rest of the trace is left at zero.
     Returns force (N, n_out) [gain applied, unfiltered], load-cell share (N, n_out),
-    maxima (N, 3) [ball compression, skin compression, NaN flag], max strain (N, ne),
+    maxima (N, 4) [ball compression, skin compression, NaN flag, stop time s], max strain (N, ne),
     energies (N, 4) [input, ball+skin dissipation, pad work, residual].
     """
     N = mb.shape[0]
@@ -205,7 +207,7 @@ def simulate_batch(mb, kc, nc, cor, R, v0, e_tf,
     n_out = n_steps // decim + 1
     out_f = np.zeros((N, n_out))
     out_share = np.zeros((N, n_out))
-    maxima = np.zeros((N, 3))
+    maxima = np.zeros((N, 4))
     max_strain = np.zeros((N, ne))
     energies = np.zeros((N, 4))
     base = 2 + 2 * nfree
@@ -220,6 +222,10 @@ def simulate_batch(mb, kc, nc, cor, R, v0, e_tf,
         tf = e_tf[s]
         mx_ball = 0.0
         mx_skin = 0.0
+        f_max = 0.0
+        step_at_max = 0
+        last_out = 0
+        stop_step = n_steps
         for step in range(n_steps + 1):
             fs, f = _rhs(y, k1, mb[s], kc[s], nc[s], alpha, R[s], node_mass, contact_node, e_top, e_bot,
                          e_par, e_h, tf, l_kind, l_ref, pl_D, pl_reach, m2, m3, k2, c2, k_nts, r_sil,
@@ -233,7 +239,15 @@ def simulate_batch(mb, kc, nc, cor, R, v0, e_tf,
             if step % decim == 0:
                 out_f[s, step // decim] = gain * fs
                 out_share[s, step // decim] = f
+                last_out = step // decim
+            if abs(fs) > f_max:
+                f_max = abs(fs)
+                step_at_max = step
             if step == n_steps:
+                break
+            if (y[0] - xc <= 0.0 and step - step_at_max > hold_steps and abs(fs) < stop_frac * f_max
+                    and step % decim == 0):
+                stop_step = step
                 break
             for i in range(nstate):
                 tmp[i] = y[i] + 0.5 * dt * k1[i]
@@ -264,4 +278,7 @@ def simulate_batch(mb, kc, nc, cor, R, v0, e_tf,
         maxima[s, 0] = mx_ball
         maxima[s, 1] = mx_skin
         maxima[s, 2] = 0.0 if np.isfinite(y).all() else 1.0
+        maxima[s, 3] = stop_step * dt
+        for k in range(last_out + 1, n_out):
+            out_share[s, k] = out_share[s, last_out]
     return out_f, out_share, maxima, max_strain, energies

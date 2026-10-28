@@ -161,19 +161,40 @@ def simulate_batch(balls: Sequence[Projectile], nts: NTS, velocities_ms: Sequenc
     k_nts = nts_foundation_modulus(nts)
     ch = build_chain(tuple(stack), R_ref, k_nts, plate_reach_m)
     e_tf = np.array([[f.material.temp_factor(T) for f in ch.foams] for T in temps_F]).reshape(n, len(ch.foams))
-
-    out_f, share, maxima, max_strain, energies = kernels.simulate_batch(
-        np.array([b.mass_kg for b in balls]), np.array([b.contact_stiffness for b in balls]),
-        np.array([b.contact_exponent for b in balls]), np.array([b.cor for b in balls]),
-        np.array([b.radius_m for b in balls]), np.asarray(velocities_ms, dtype=float), e_tf,
-        ch.node_mass, ch.contact_node, ch.e_top, ch.e_bot, ch.e_par, ch.e_h, ch.l_kind, ch.l_ref,
-        ch.pl_D, ch.pl_reach,
-        nts.loading_surface_mass_kg + ch.backing_mass, nts.back_mass_kg,
-        nts.skin_stiffness_N_per_m, nts.skin_damping_Ns_per_m, nts.gain, k_nts, silhouette_radius_m(),
-        dt, n_steps, decim,
+    args = dict(
+        mb=np.array([b.mass_kg for b in balls]), kc=np.array([b.contact_stiffness for b in balls]),
+        nc=np.array([b.contact_exponent for b in balls]), cor=np.array([b.cor for b in balls]),
+        R=np.array([b.radius_m for b in balls]), v0=np.asarray(velocities_ms, dtype=float), e_tf=e_tf,
     )
+
+    def run(idx: np.ndarray, dt: float):
+        decim = int(round(1.0 / (fs * dt)))
+        if abs(decim * fs * dt - 1.0) > 1e-9:
+            raise ValueError(f"dt {dt} s must divide the output period 1/{fs} s")
+        return kernels.simulate_batch(
+            *(args[k][idx] for k in ("mb", "kc", "nc", "cor", "R", "v0", "e_tf")),
+            ch.node_mass, ch.contact_node, ch.e_top, ch.e_bot, ch.e_par, ch.e_h, ch.l_kind, ch.l_ref,
+            ch.pl_D, ch.pl_reach,
+            nts.loading_surface_mass_kg + ch.backing_mass, nts.back_mass_kg,
+            nts.skin_stiffness_N_per_m, nts.skin_damping_Ns_per_m, nts.gain, k_nts, silhouette_radius_m(),
+            dt, int(round(solver["duration_s"] / dt)), decim,
+            solver["stop_fraction"], int(round(solver["stop_hold_s"] / dt)),
+        )
+
+    # accuracy-driven step: rerun only the samples whose energy residual is too large
+    dt = solver["dt_s"]
+    idx = np.arange(n)
+    out_f, share, maxima, max_strain, energies = run(idx, dt)
+    while True:
+        bad = ~(np.abs(energies[:, 3]) <= solver["max_energy_residual"] * energies[:, 0]) | (maxima[:, 2] > 0)
+        if not bad.any() or dt / 2 < solver["min_dt_s"] * (1 - 1e-9):
+            break
+        dt /= 2
+        sub = np.flatnonzero(bad)
+        f2, s2, m2_, ms2, e2 = run(sub, dt)
+        out_f[sub], share[sub], maxima[sub], max_strain[sub], energies[sub] = f2, s2, m2_, ms2, e2
     if maxima[:, 2].any():
-        raise RuntimeError("impact integration diverged (non-finite state); reduce solver.dt_s")
+        raise RuntimeError("impact integration diverged (non-finite state); reduce solver.min_dt_s")
     filt = cfc_filter(out_f, fs, nd.filter_cfc)
     return BatchResult(
         t=np.arange(out_f.shape[1]) / fs, force_raw_N=out_f, force_N=filt, load_cell_share=share,

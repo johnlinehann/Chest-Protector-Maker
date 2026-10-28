@@ -27,5 +27,9 @@ skin_foundation: {rule: "k2 / silhouette_area", source: "modeling assumption", e
 
 solver:  # fixed-step RK4 (chestforge/core/kernels.py)
   output_rate_hz: 20000     # >= nd200 data_acquisition.min_sample_rate_hz
-  duration_s: 0.03
-  dt_s: 2.5e-7
+  duration_s: 0.03          # trace length; integration stops early once the pulse has decayed
+  dt_s: 1.0e-6              # starting step; halved per sample until the energy residual is small
+  min_dt_s: 1.25e-7
+  max_energy_residual: 2.0e-3   # fraction of input energy
+  stop_fraction: 0.25       # early stop: force below this fraction of its peak ...
+  stop_hold_s: 0.003        # ... at least this long after the peak, ball out of contact
