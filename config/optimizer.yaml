@@ -1,0 +1,38 @@
+# Optimizer settings (user-editable). Design = cardiac-zone stack + plate shape; rest of the
+# protector is the fixed torso zone below (ND200 tests only the cardiac silhouette, so the
+# torso stack affects mass but no ND200 impact).
+
+projectile: baseball
+torso_length_in: 15.0        # intended wearer; sets the §12.2 max shift
+margin_target_pct: 25        # hard constraint: every one of the 6 impacts passes at P95 with this margin
+mc_samples: 32               # Monte Carlo samples per impact during search (common random numbers)
+mc_samples_final: 200        # for the top-5 verification reports
+seed: 0
+shift_search: {ring_step_in: 1.0, n_angles: 8}   # coarser than the default report search
+
+search_space:
+  plate:
+    materials: [pc, hdpe]
+    thickness_mm: [1.5, 6.0, 0.25]       # [min, max, step]
+    half_width_in: [1.5, 6.0, 0.25]
+    half_height_in: [1.5, 6.0, 0.25]
+  outer_foam:                            # between ball and plate (optional)
+    materials: [none, eva_100, pe_45, poron_xrd_240]
+    thickness_mm: [2, 10, 1]
+  inner_foam:                            # between plate and body
+    materials: [eva_100, pe_45, poron_xrd_240]
+    thickness_mm: [5, 30, 1]
+  zone_clearance_in: 0.25                # cardiac zone = max(plate, silhouette + max shift) + clearance
+
+torso_zone:
+  outline: {cx: 0.0, cy: -1.0, a: 7.0, b: 9.0}
+  stack:
+    - {material: eva_100, thickness_mm: 10}
+
+objectives: [p95_50mph_lbf, mass_g, thickness_mm, bending_Nm]
+
+surrogate:
+  min_training: 200          # train the ML surrogate only after this many evaluations
+  candidates: 20000          # random + mutated designs scored per round
+  batch: 8                   # true simulations per round
+  kappa: 1.0                 # exploration weight on predictive std

@@ -48,4 +48,14 @@ python -m chestforge.core.nd200_runner --design designs/example_plate_foam.yaml 
 - Designs: YAML with zones/stacks/plate extents — see `designs/example_plate_foam.yaml`.
 - All materials are **estimated**, not measured.
 
-See `docs/PLAN.md` for milestones 4–7.
+## Optimizer (Milestone 4)
+```bash
+python -m chestforge.optimize.optimizer --name run1 --method all --trials 120 --rounds 10
+```
+- **Design variables** (`config/optimizer.yaml`): plate material/thickness/size, optional outer foam, inner foam. Cardiac zone always covers silhouette + max shift.
+- **Hard constraint:** all 6 ND200 impacts pass at **P95** with ≥ `margin_target_pct` (default 25%).
+- **Objectives:** P95 load @ 50 mph, protector mass (g), cardiac-zone thickness (mm), bending stiffness (mobility proxy).
+- **Methods:** Optuna TPE (single objective, default mass) → NSGA-II (Pareto) → GP surrogate active learning after ≥ 200 evaluations (also writes an FEA validation queue of uncertain designs near the constraint).
+- **Outputs** in `runs/<name>/`: `evaluations.jsonl` (resumable), `pareto.csv`, `convergence.png`, `pareto.png`, `top5.md` (full ND200 reports, 200-sample MC), `top5/*.yaml` (load with `--design`).
+
+See `docs/PLAN.md` for milestones 5–7.

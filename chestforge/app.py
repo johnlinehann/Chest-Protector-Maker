@@ -26,7 +26,8 @@ def run() -> int:
         if calibration.main() != 0:
             print("\nCalibration FAILED — design runs are blocked until it passes.")
             return 1
-    print("\nRun a design:  python -m chestforge.core.nd200_runner --material poron_xrd_240 --thickness-mm 30 --torso-in 15")
+    print("\nRun a design:  python -m chestforge.core.nd200_runner --layer pc:3 --layer poron_xrd_240:15 --torso-in 15 --mc 100")
+    print("Optimize:      python -m chestforge.optimize.optimizer --name run1 --method all --trials 120")
     print("Materials: config/materials.yaml. The 3D UI arrives in Milestone 6.")
     return 0
 
