@@ -1,0 +1,36 @@
+# Projectile MODEL parameters (not the standard). Spec ranges come from nd200.yaml §13.1;
+# nominal values default to the spec-range midpoint. Anything not in ND200 is estimated: true.
+#
+# Contact law (Hunt-Crossley, Lankarani-Nikravesh damping):
+#   F = k * d^n * (1 + 3(1 - e^2)/(4 v0) * d_dot),  F >= 0
+# k is derived at runtime from the C-D spec: a C-D test squeezes the ball between two flat
+# plates, so each contact deflects half the total displacement.
+
+default: baseball
+
+baseball:
+  spec: nd200.projectiles.baseball
+  cd_force_nominal_lb: {value: 250, source: "midpoint of §13.1.1 range (200-300 lb)", estimated: true}
+  contact_exponent: {value: 1.5, source: "Hertzian sphere-on-flat exponent; modeling choice", estimated: true}
+  cor: {value: 0.546, min: 0.514, max: 0.578, source: "MLB ball COR spec 0.546 +/- 0.032 at 85 ft/s vs. ash wall (Official Baseball Rules; Kensrud & Smith 2010). Not in ND200.", estimated: true}
+
+lacrosse:
+  spec: nd200.projectiles.lacrosse
+  cd_force_nominal_lb: {value: 132.5, source: "midpoint of §13.1.2 range (115-150 lb)", estimated: true}
+  contact_exponent: {value: 1.5, source: "Hertzian sphere-on-flat exponent; modeling choice", estimated: true}
+  cor: {value: 0.62, min: 0.58, max: 0.66, source: "ESTIMATE for solid-rubber lacrosse ball; verify against NOCSAE ND049 / own drop tests. Not in ND200.", estimated: true}
+
+softball:
+  # BEYOND STANDARD — not an ND200 projectile.
+  nd200: false
+  mass_g: {min: 177.2, max: 198.4, source: "NCAA/USA Softball 12 in ball, 6.25-7.0 oz", verified: false, estimated: true}
+  circumference_in: {min: 11.875, max: 12.125, source: "NCAA/USA Softball 12 in ball", verified: false, estimated: true}
+  compression_displacement:
+    at: {value: 0.25, units: in}
+    force_lb: {min: 300, max: 375}
+    source: "NCAA/USA Softball .47 COR / 375 lb max compression (ASTM F1888); min is an ESTIMATE"
+    verified: false
+    estimated: true
+  cd_force_nominal_lb: {value: 337.5, source: "midpoint of assumed range", estimated: true}
+  contact_exponent: {value: 1.5, source: "Hertzian sphere-on-flat exponent; modeling choice", estimated: true}
+  cor: {value: 0.44, min: 0.40, max: 0.47, source: "NCAA/USA Softball .47 COR max (ASTM F1887); nominal is an ESTIMATE", estimated: true}

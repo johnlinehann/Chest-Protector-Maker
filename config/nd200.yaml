@@ -1,0 +1,100 @@
+# NOCSAE DOC (ND) 200-22m25, modified December 2025.
+# https://nocsae.org/wp-content/uploads/2024/10/nd200-22m25-commotio-cordis-test-method-and-performance-spec.pdf
+# Every value below was checked against that PDF (verified: true) and cites its section.
+# This file encodes the standard only. Model assumptions live in projectiles.yaml / nts.yaml.
+
+document:
+  id: "NOCSAE DOC (ND) 200-22m25"
+  revision: "Modified December 2025"
+  url: "https://nocsae.org/wp-content/uploads/2024/10/nd200-22m25-commotio-cordis-test-method-and-performance-spec.pdf"
+
+velocity_tolerance_pct: {value: 3.0, units: "%", source: "§8.1, §9.1, Table 1", verified: true}
+
+performance:  # §14 — peak cardiac load cell force, every impact
+  - {name: "30mph", velocity_mph: 30, velocity_ms_nominal: 13.4, max_peak_lbf: 90, max_peak_N: 400, source: "§14.1.1, Table 1", verified: true}
+  - {name: "50mph", velocity_mph: 50, velocity_ms_nominal: 22.4, max_peak_lbf: 180, max_peak_N: 800, source: "§14.2.1, Table 1", verified: true}
+
+test_matrix:  # Table 1 (§13.3)
+  source: "Table 1"
+  verified: true
+  samples:
+    - {sample: 1, condition: "30mph", locations: ["cardiac_center", "random_1", "random_2"]}
+    - {sample: 2, condition: "50mph", locations: ["cardiac_center", "random_1", "random_2"]}
+
+random_location:  # §12.2
+  aim: "cardiac_center"            # projectile still hits silhouette centre; protector is shifted
+  aim_tolerance_in: {value: 0.25, units: in, source: "§12.1, §12.2", verified: true}
+  min_contact_spacing_in: {value: 1.0, units: in, source: "§12.2", verified: true}
+  surrogate_perpendicularity_deg: {value: 2.5, units: deg, source: "§12.1, §12.2", verified: true}
+  # Max protector shift in any direction by intended torso length (jugular notch -> navel, §4.7).
+  shift_bands:
+    - {torso_length_in: {max_inclusive: 13.5}, max_shift_in: 1.75, source: "§12.2.1", verified: true}
+    - {torso_length_in: {min_exclusive: 13.5, max_exclusive: 16.0}, max_shift_in: 2.0, source: "§12.2.2", verified: true}
+    - {torso_length_in: {min_inclusive: 16.0}, max_shift_in: 2.25, source: "§12.2.3", verified: true}
+
+projectiles:  # §13.1 — manufacturer designates baseball OR lacrosse ball
+  baseball:
+    nd200: true
+    mass_g: {min: 142, max: 149, source: "§13.1.1 (5-5.25 oz)", verified: true}
+    circumference_in: {min: 9.0, max: 9.25, source: "§13.1.1", verified: true}
+    compression_displacement:
+      at: {value: 0.25, units: in}
+      force_lb: {min: 200, max: 300}
+      source: "§13.1.1"
+      verified: true
+  lacrosse:
+    nd200: true
+    mass_g: {min: 141.8, max: 148.8, source: "§13.1.2 (5.0-5.25 oz)", verified: true}
+    circumference_in: {min: 7.75, max: 8.0, source: "§13.1.2", verified: true}
+    compression_displacement:
+      at: {value: 25, units: "%"}
+      force_lb: {min: 115, max: 150}
+      source: "§13.1.2"
+      verified: true
+
+beyond_standard:
+  # NOT part of ND200. Softball has no ND200 projectile spec, limit or calibration target.
+  # Results with it are flagged "beyond-standard" and never reported as ND200 PASS/FAIL.
+  projectiles: ["softball"]
+
+surrogate:  # NOCSAE Thoracic Surrogate (NTS), §4.1, §9, Figure 1
+  description: "Damped loading surface + single-axis load cell (cardiac silhouette) + rigid back plate (§4.1)"
+  load_cell_capacity_lbf: {value: 750, units: lbf, source: "§9.3", verified: true}
+  linear_bearing_table_max_weight_lb: {value: 12.5, units: lb, source: "§9.4 (5.7 kg)", verified: true}
+  geometry:  # Figure 1 — Torso Surrogate Dimensions
+    torso_length_in: {value: 12.50, source: "Figure 1", verified: true}
+    chest_breadth_in: {value: 8.875, source: "Figure 1", verified: true}
+    silhouette_height_in: {value: 3.460, source: "Figure 1", verified: true}
+    silhouette_top_below_torso_top_in: {value: 1.797, source: "Figure 1", verified: true}
+    silhouette_outer_edge_from_centerline_in: {value: 3.000, source: "Figure 1", verified: true}
+    # Figure 1 draws the silhouette as an ellipse from the centre line to the 3.000 in mark;
+    # width is read off the drawing, not dimensioned.
+    silhouette_width_in: {value: 3.0, source: "Figure 1 (scaled from drawing)", verified: false, estimated: true}
+
+calibration:  # Appendix 1 — unprotected NTS, centre of cardiac silhouette
+  velocity_tolerance_mph: {value: 0.2, source: "Appendix 1 Steps 3-6", verified: true}
+  target:   {velocity_mph: 30.0, peak_lbf: 140, tolerance_lbf: 2, source: "Appendix 1 Step 3", verified: true}
+  lower:    {velocity_mph: 29.1, peak_lbf_greater_than: 130, source: "Appendix 1 Step 5", verified: true}
+  upper:    {velocity_mph: 30.9, peak_lbf_less_than: 150, source: "Appendix 1 Step 6", verified: true}
+  per_projectile: true   # "validate the NTS with both projectiles to obtain settings for each" (App. 1 NOTE)
+
+system_check:  # §10
+  velocity_mph: 30
+  velocity_tolerance_pct: 3
+  impacts: 3
+  peak_lbf: {min: 130, max: 150}
+  max_pre_post_variation_pct: 7
+  source: "§10.3, §10.4"
+  verified: true
+
+data_acquisition:
+  min_sample_rate_hz: {value: 10000, source: "§9.5", verified: true}
+  filter_cfc: {value: 120, source: "§9.6", verified: true}
+
+conditioning:
+  temperature_F: {nominal: 72, tolerance: 5, source: "§6.3.1, §6.3.2", verified: true}
+  min_soak_hours: {value: 4, source: "§6.3.2", verified: true}
+
+sampling:
+  min_samples_per_model: {value: 2, source: "§5.1", verified: true}
+  rule: "Smallest size offered in each torso-length range (§12.2.1-12.2.3); if primary protective component is one size, 2 samples of smallest size with longest intended torso length (§5.1.2)."

@@ -1,0 +1,29 @@
+# NOCSAE Thoracic Surrogate — 3-DOF lumped-parameter MODEL priors.
+# ND200 specifies NTS construction (§4.1) and response (Appendix 1), not these values.
+# All are estimated; the calibration step fits the skin stiffness k2 so the bare-NTS
+# response meets Appendix 1, mirroring the lab's "adjust settings" step.
+#
+#   ball m1 --contact--> loading surface m2 --[k2, c2] (load cell)--> back plate + table m3 (free, linear bearing)
+#   load-cell force = k2 (x2 - x3) + c2 (v2 - v3)
+
+reference_projectile: baseball   # mechanics fitted with this ball; others get a DAQ gain (App. 1 NOTE)
+
+loading_surface_mass_kg: {value: 0.15, source: "ESTIMATE: elastomer skin + load-cell cap", estimated: true}
+surrogate_body_mass_kg: {value: 4.5, source: "ESTIMATE: NTS torso + back plate", estimated: true}
+table_mass_kg: {value: 5.669, source: "§9.4 upper limit (12.5 lb) used as nominal", estimated: true}
+skin_damping_ratio: {value: 0.2, source: "ESTIMATE; refit from measured bare-NTS pulse width in Milestone 7", estimated: true}
+skin_stiffness_N_per_m:  # fitted by calibration (root search inside these bounds)
+  initial: 20000
+  min: 1000
+  max: 2000000
+  source: "Search bounds only; final value is fitted to ND200 Appendix 1"
+  estimated: true
+
+gain_sanity_band: [0.8, 1.2]  # DAQ gain outside this for a non-reference projectile => warn
+
+solver:
+  output_rate_hz: 20000     # >= nd200 data_acquisition.min_sample_rate_hz
+  duration_s: 0.04
+  max_step_s: 2.0e-5
+  rtol: 1.0e-8
+  atol: 1.0e-11

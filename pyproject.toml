@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "chestforge"
+version = "0.1.0"
+description = "Simulate and optimize catcher chest-protector padding against NOCSAE ND200-22m25. Simulated — not NOCSAE certified."
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26", "scipy>=1.11", "pyyaml>=6", "pydantic>=2"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.setuptools.packages.find]
+include = ["chestforge*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

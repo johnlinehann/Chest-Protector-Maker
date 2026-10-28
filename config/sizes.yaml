@@ -1,0 +1,8 @@
+# Product sizes (user-editable). torso_length_in = intended wearer jugular notch -> navel (ND200 §4.7, §5.1.1).
+# Max random-location shift is looked up from nd200.yaml §12.2 — never set here.
+# EXAMPLE sizes only — replace with your product line.
+sizes:
+  - {name: "Youth S", torso_length_in: 12.5, estimated: true}
+  - {name: "Youth L", torso_length_in: 13.5, estimated: true}
+  - {name: "Intermediate", torso_length_in: 15.0, estimated: true}
+  - {name: "Adult", torso_length_in: 16.5, estimated: true}
