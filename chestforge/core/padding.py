@@ -1,27 +1,19 @@
-"""Padding layers: rate-dependent foam constitutive law and ball-on-pad force.
+"""Padding materials and layer stacks. Physics lives in kernels.py; this module holds the data.
 
-Milestone 2 models one homogeneous foam layer under the ball. The foam force is
-    F = s(e, e_dot) * A(d)
-with e = d/h the compressive strain under the ball centre and A(d) the area of a sphere
-indenting to depth d (capped at the ball cross-section).
-
-Load spreading (axisymmetric, uniform pressure): the force leaves the back of the pad over a
-disc of radius a_c(d) + (h - d) tan(angle). The share falling on the cardiac silhouette
-(area-equivalent circle) loads the load cell; the rest goes into the rigid surrogate body.
-Plates and a proper 2D pressure distribution replace this in Milestone 3.
+A stack is a tuple of layers ordered from the ball side to the body side.
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import Union
 
-from chestforge.config import CONFIG_DIR
-
+import numpy as np
 import yaml
 
-E_MAX = 0.995          # strain clamp: densification term diverges at e -> 1
-RATE_SMOOTH = 1.0      # 1/s, width of the load/unload blend in tanh(e_dot / RATE_SMOOTH)
+from chestforge.config import CONFIG_DIR
+from chestforge.core import kernels
 
 
 @dataclass(frozen=True)
@@ -39,99 +31,169 @@ class FoamMaterial:
     ref_strain_rate: float
     unloading_ratio: float
     load_spread_angle_deg: float
+    temp_coeff_per_F: float
     estimated: bool
 
-    def quasi_static_stress(self, e: float) -> float:
-        """Avalle et al. (2001) compressive curve, Pa. Linear (E e) in tension."""
-        if e <= 0.0:
-            return self.E_Pa * e
-        e = min(e, E_MAX)
-        plateau = self.A_Pa * (1.0 - math.exp(-(self.E_Pa / self.A_Pa) * e * (1.0 - e) ** self.m))
-        return plateau + self.B_Pa * (e / (1.0 - e)) ** self.n
+    def params(self) -> np.ndarray:
+        """Row in the kernel's foam-parameter layout."""
+        p = np.zeros(kernels.N_FOAM_PAR)
+        p[kernels.F_E], p[kernels.F_A], p[kernels.F_M] = self.E_Pa, self.A_Pa, self.m
+        p[kernels.F_B], p[kernels.F_N], p[kernels.F_C] = self.B_Pa, self.n, self.rate_C
+        p[kernels.F_REF], p[kernels.F_UNL] = self.ref_strain_rate, self.unloading_ratio
+        p[kernels.F_TAN] = math.tan(math.radians(self.load_spread_angle_deg))
+        return p
 
-    def stress(self, e: float, e_dot: float) -> float:
-        """Rate-dependent stress with smooth hysteretic unloading, Pa (compression positive)."""
-        s = self.quasi_static_stress(e)
-        if e <= 0.0:
-            return s
-        if e_dot > self.ref_strain_rate:
-            s *= 1.0 + self.rate_C * math.log(e_dot / self.ref_strain_rate)
-        r = self.unloading_ratio
-        return s * (0.5 * (1 + r) + 0.5 * (1 - r) * math.tanh(e_dot / RATE_SMOOTH))
+    def temp_factor(self, temp_F: float) -> float:
+        return 1.0 - self.temp_coeff_per_F * (temp_F - 72.0)
+
+    def quasi_static_stress(self, e: float) -> float:
+        return kernels.foam_qs(e, self.E_Pa, self.A_Pa, self.m, self.B_Pa, self.n)
+
+    def stress(self, e: float, e_dot: float, temp_F: float = 72.0) -> float:
+        return kernels.foam_stress(e, e_dot, self.params(), self.temp_factor(temp_F))
 
 
 @dataclass(frozen=True)
-class PadLayer:
+class PlateMaterial:
+    id: str
+    name: str
+    density_kg_m3: float
+    E_Pa: float
+    poisson: float
+    estimated: bool
+
+
+@dataclass(frozen=True)
+class Ellipse:
+    """Axis-aligned ellipse in protector coordinates, inches. Origin = point fitted over the
+    cardiac-silhouette centre (ND200 §11.1); +x toward the wearer's left, +y up."""
+    cx: float
+    cy: float
+    a: float      # half-width, in
+    b: float      # half-height, in
+
+    def contains(self, x: float, y: float) -> bool:
+        return ((x - self.cx) / self.a) ** 2 + ((y - self.cy) / self.b) ** 2 <= 1.0
+
+    def edge_distance(self, x: float, y: float, n: int = 720) -> float:
+        """Signed distance (in) from a point to the boundary: positive inside."""
+        t = np.linspace(0.0, 2 * np.pi, n, endpoint=False)
+        d = float(np.min(np.hypot(self.cx + self.a * np.cos(t) - x, self.cy + self.b * np.sin(t) - y)))
+        return d if self.contains(x, y) else -d
+
+
+@dataclass(frozen=True)
+class FoamLayer:
     material: FoamMaterial
     thickness_m: float
 
     def __post_init__(self):
         if self.thickness_m <= 0:
-            raise ValueError("pad thickness must be positive")
+            raise ValueError("layer thickness must be positive")
 
     @property
     def areal_mass_kg_m2(self) -> float:
         return self.material.density_kg_m3 * self.thickness_m
 
     def footprint_mass_kg(self, ball_radius_m: float) -> float:
-        """Pad mass under the ball's cross-section."""
+        """Layer mass under the ball's cross-section."""
         return self.areal_mass_kg_m2 * math.pi * ball_radius_m**2
 
-    def force(self, d: float, d_dot: float, ball_radius_m: float) -> float:
-        """Foam force for compression d (m) at rate d_dot (m/s), N."""
-        h = self.thickness_m
-        e, e_dot = d / h, d_dot / h
-        if d <= 0.0:  # tension: bonded face, area of the footprint
-            return self.material.stress(e, e_dot) * math.pi * ball_radius_m**2
-        return self.material.stress(e, e_dot) * math.pi * contact_radius(d, ball_radius_m) ** 2
-
-    def load_cell_fraction(self, d: float, ball_radius_m: float, silhouette_radius_m: float) -> float:
-        """Share of the transmitted force that lands on the cardiac silhouette (centred impact)."""
-        remaining = max(self.thickness_m - max(d, 0.0), 0.0)
-        a = contact_radius(d, ball_radius_m) + remaining * math.tan(math.radians(self.material.load_spread_angle_deg))
-        return 1.0 if a <= silhouette_radius_m else (silhouette_radius_m / a) ** 2
+    def describe(self) -> str:
+        return f"{self.material.id} {self.thickness_m * 1000:.1f}mm"
 
 
-def contact_radius(d: float, ball_radius_m: float) -> float:
-    """Radius of a sphere's footprint at indentation depth d (capped at the ball radius)."""
-    a = min(max(d, 0.0), ball_radius_m)
-    return math.sqrt(2.0 * ball_radius_m * a - a * a)
+PadLayer = FoamLayer  # Milestone 2 name
+
+
+@dataclass(frozen=True)
+class PlateLayer:
+    material: PlateMaterial
+    thickness_m: float
+    extent: Ellipse | None = None    # None: plate fills its zone
+
+    def __post_init__(self):
+        if self.thickness_m <= 0:
+            raise ValueError("layer thickness must be positive")
+
+    @property
+    def areal_mass_kg_m2(self) -> float:
+        return self.material.density_kg_m3 * self.thickness_m
+
+    @property
+    def bending_stiffness(self) -> float:
+        """D = E t^3 / (12 (1 - nu^2)), N m."""
+        m = self.material
+        return m.E_Pa * self.thickness_m**3 / (12.0 * (1.0 - m.poisson**2))
+
+    def describe(self) -> str:
+        return f"{self.material.id} plate {self.thickness_m * 1000:.1f}mm"
+
+
+Layer = Union[FoamLayer, PlateLayer]
+Stack = tuple  # tuple[Layer, ...], ball side first
+
+
+def stack_areal_mass(stack: Stack) -> float:
+    return sum(l.areal_mass_kg_m2 for l in stack)
+
+
+def stack_thickness_m(stack: Stack) -> float:
+    return sum(l.thickness_m for l in stack)
+
+
+def describe_stack(stack: Stack) -> str:
+    return " / ".join(l.describe() for l in stack) if stack else "bare"
 
 
 def _val(entry: dict) -> float:
     return entry["value"]
 
 
-def load_materials() -> dict[str, FoamMaterial]:
+def _load_raw() -> list[dict]:
     with open(CONFIG_DIR / "materials.yaml") as f:
-        raw = yaml.safe_load(f)["materials"]
+        return yaml.safe_load(f)["materials"]
+
+
+def load_materials() -> dict[str, FoamMaterial | PlateMaterial]:
     out = {}
-    for m in raw:
-        if m["model"] != "avalle_jc":
+    for m in _load_raw():
+        est = any(isinstance(v, dict) and v.get("estimated", False) for v in m.values())
+        if m["model"] == "avalle_jc":
+            out[m["id"]] = FoamMaterial(
+                id=m["id"], name=m["name"],
+                density_kg_m3=_val(m["density_kg_m3"]),
+                E_Pa=_val(m["E_MPa"]) * 1e6, A_Pa=_val(m["A_MPa"]) * 1e6, m=_val(m["m"]),
+                B_Pa=_val(m["B_MPa"]) * 1e6, n=_val(m["n"]),
+                densification_strain=_val(m["densification_strain"]),
+                rate_C=_val(m["rate_C"]), ref_strain_rate=_val(m["ref_strain_rate"]),
+                unloading_ratio=_val(m["unloading_ratio"]),
+                load_spread_angle_deg=_val(m["load_spread_angle_deg"]),
+                temp_coeff_per_F=_val(m["temp_coeff_per_F"]),
+                estimated=est,
+            )
+        elif m["model"] == "elastic_plate":
+            out[m["id"]] = PlateMaterial(
+                id=m["id"], name=m["name"], density_kg_m3=_val(m["density_kg_m3"]),
+                E_Pa=_val(m["E_MPa"]) * 1e6, poisson=_val(m["poisson"]), estimated=est,
+            )
+        else:
             raise ValueError(f"material {m['id']}: unsupported model {m['model']!r}")
-        fields = ("density_kg_m3", "E_MPa", "A_MPa", "m", "B_MPa", "n", "densification_strain",
-                  "rate_C", "ref_strain_rate", "unloading_ratio", "load_spread_angle_deg")
-        out[m["id"]] = FoamMaterial(
-            id=m["id"],
-            name=m["name"],
-            density_kg_m3=_val(m["density_kg_m3"]),
-            E_Pa=_val(m["E_MPa"]) * 1e6,
-            A_Pa=_val(m["A_MPa"]) * 1e6,
-            m=_val(m["m"]),
-            B_Pa=_val(m["B_MPa"]) * 1e6,
-            n=_val(m["n"]),
-            densification_strain=_val(m["densification_strain"]),
-            rate_C=_val(m["rate_C"]),
-            ref_strain_rate=_val(m["ref_strain_rate"]),
-            unloading_ratio=_val(m["unloading_ratio"]),
-            load_spread_angle_deg=_val(m["load_spread_angle_deg"]),
-            estimated=any(m[k].get("estimated", False) for k in fields),
-        )
     return out
 
 
-def load_material(material_id: str) -> FoamMaterial:
+def load_material(material_id: str) -> FoamMaterial | PlateMaterial:
     mats = load_materials()
     if material_id not in mats:
         raise KeyError(f"unknown material {material_id!r}; available: {sorted(mats)}")
     return mats[material_id]
+
+
+def layer(material_id: str, thickness_mm: float, extent: Ellipse | None = None) -> Layer:
+    """Convenience constructor: foam or plate depending on the material."""
+    m = load_material(material_id)
+    if isinstance(m, PlateMaterial):
+        return PlateLayer(m, thickness_mm / 1000, extent)
+    if extent is not None:
+        raise ValueError("foam layers fill their zone; extent applies to plates only")
+    return FoamLayer(m, thickness_mm / 1000)

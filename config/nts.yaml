@@ -21,9 +21,11 @@ skin_stiffness_N_per_m:  # fitted by calibration (root search inside these bound
 
 gain_sanity_band: [0.8, 1.2]  # DAQ gain outside this for a non-reference projectile => warn
 
-solver:
+# Plate load spreading needs the NTS skin as an elastic foundation (N/m^3). Not in ND200: taken as
+# k2 spread over the cardiac silhouette area, i.e. k_found = k2 / (pi r_sil^2).
+skin_foundation: {rule: "k2 / silhouette_area", source: "modeling assumption", estimated: true}
+
+solver:  # fixed-step RK4 (chestforge/core/kernels.py)
   output_rate_hz: 20000     # >= nd200 data_acquisition.min_sample_rate_hz
-  duration_s: 0.04
-  max_step_s: 2.0e-5
-  rtol: 1.0e-8
-  atol: 1.0e-11
+  duration_s: 0.03
+  dt_s: 2.5e-7

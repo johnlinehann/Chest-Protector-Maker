@@ -35,13 +35,17 @@ Creates `ChestForge.lnk` (Windows), `ChestForge.app` (macOS) or `ChestForge.desk
 - Output sampled at 20 kHz (≥ 10 kHz, §9.5), SAE J211 CFC120 filtered (§9.6).
 - `require_calibrated()` raises `CalibrationError` if calibration is missing, stale, or failing.
 
-## ND200 runner (Milestone 2)
+## ND200 runner
 ```bash
-python -m chestforge.core.nd200_runner --material poron_xrd_240 --thickness-mm 30 --torso-in 15
+python -m chestforge.core.nd200_runner --layer pc:3 --layer poron_xrd_240:15 --torso-in 15 --mc 200
+python -m chestforge.core.nd200_runner --design designs/example_plate_foam.yaml --mc 200
 ```
-- Single foam layer: Avalle (2001) curve × Johnson-Cook log rate factor, smooth hysteretic unloading, bottoming flag at densification strain.
-- Ball indents the pad (sphere footprint); force spreads through remaining thickness; only the share on the cardiac silhouette loads the load cell.
-- Runs all 6 Table 1 impacts, random shifts at the §12.2 limit for the torso length (≥ 1 in apart) → PASS/FAIL + margin per impact.
-- Starter materials (EVA, PE, PORON-type) are **estimated**, not measured.
+- **Stack** (ball side first): foams (Avalle 2001 curve × Johnson-Cook log rate, hysteresis, temperature) and plates (PC, HDPE).
+- **Load spreading:** foam cone; plates via plate-on-elastic-foundation theory (Timoshenko), reduced near plate edges (Westergaard 1926). Only the share on the cardiac silhouette loads the load cell.
+- **Random locations:** every shift direction on rings from 1 in to the §12.2 limit; worst two (≥ 1 in apart) become Random #1/#2. Flags seams/plate edges inside the shift radius and checks silhouette coverage.
+- **Monte Carlo (`--mc N`):** ball within §13.1 spec, ±3% velocity, 67–77 °F → P95 peak per impact.
+- **Engine:** compiled RK4 (numba), ~0.17 s/impact, parallel across samples; checked against an independent scipy integration.
+- Designs: YAML with zones/stacks/plate extents — see `designs/example_plate_foam.yaml`.
+- All materials are **estimated**, not measured.
 
-See `docs/PLAN.md` for milestones 3–7.
+See `docs/PLAN.md` for milestones 4–7.

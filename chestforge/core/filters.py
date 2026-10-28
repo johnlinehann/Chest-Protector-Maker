@@ -25,8 +25,9 @@ def cfc_coefficients(cfc: float, sample_rate_hz: float) -> tuple[np.ndarray, np.
 
 
 def cfc_filter(x: np.ndarray, sample_rate_hz: float, cfc: float = 120) -> np.ndarray:
-    """Phaseless CFC filter. Ends are padded by odd reflection to limit start-up transients."""
+    """Phaseless CFC filter along the last axis. Ends are padded by odd reflection."""
     if sample_rate_hz < 10 * cfc:
         raise ValueError(f"sample rate {sample_rate_hz} Hz too low for CFC{cfc}")
     b, a = cfc_coefficients(cfc, sample_rate_hz)
-    return filtfilt(b, a, np.asarray(x, dtype=float), padtype="odd", padlen=min(len(x) - 1, 3 * 100))
+    x = np.asarray(x, dtype=float)
+    return filtfilt(b, a, x, axis=-1, padtype="odd", padlen=min(x.shape[-1] - 1, 300))

@@ -7,10 +7,13 @@
 #   rate (Johnson-Cook log form, loading only):  x (1 + C ln(max(e_dot/e_dot0, 1)))
 #   unloading: s_qs scaled toward unloading_ratio as e_dot < 0 (smooth hysteresis, energy loss)
 #   tension (e < 0): s = E e
+#   temperature: stress x (1 - temp_coeff_per_F (T - 72 F)); ND200 conditioning is 72 +/- 5 F (§6.3)
 #   bottoming flagged when peak strain >= densification_strain
 #   load spreading: transmitted pressure footprint radius = contact radius + remaining thickness * tan(angle);
 #     the share landing on the cardiac silhouette (area-equivalent circle) goes to the load cell,
 #     the rest to the rigid surrogate body. Bottoming out (no thickness left) removes the spreading.
+#
+# model: elastic_plate — rigid in compression, spreads load by bending (see chestforge/core/kernels.py)
 #
 # The three starter foams below are NOT fitted to measured curves. Their moduli/plateaus come from
 # Gibson & Ashby scaling (Cellular Solids, 2nd ed., 1997, ch. 5) for the stated density, and their
@@ -32,6 +35,7 @@ materials:
     ref_strain_rate: {value: 0.01, source: "quasi-static reference rate", estimated: true}
     unloading_ratio: {value: 0.30, source: "ESTIMATE: moderate hysteresis", estimated: true}
     load_spread_angle_deg: {value: 35, source: "ESTIMATE: moderately stiff closed-cell foam; commonly assumed 30-45 deg for foam layers", estimated: true}
+    temp_coeff_per_F: {value: 0.006, source: "ESTIMATE: ~-1%/degC modulus sensitivity of EVA near room temperature; stress x (1 - c (T - 72 F))", estimated: true}
 
   - id: pe_45
     name: "Polyethylene foam (LDPE), closed-cell, 45 kg/m3"
@@ -47,6 +51,7 @@ materials:
     ref_strain_rate: {value: 0.01, source: "quasi-static reference rate", estimated: true}
     unloading_ratio: {value: 0.40, source: "ESTIMATE: resilient closed-cell foam, lower hysteresis", estimated: true}
     load_spread_angle_deg: {value: 30, source: "ESTIMATE; commonly assumed 30-45 deg for foam layers", estimated: true}
+    temp_coeff_per_F: {value: 0.005, source: "ESTIMATE: ~-0.9%/degC; stress x (1 - c (T - 72 F))", estimated: true}
 
   - id: poron_xrd_240
     name: "PORON XRD-type rate-sensitive urethane, 240 kg/m3 (15 pcf)"
@@ -62,3 +67,18 @@ materials:
     ref_strain_rate: {value: 0.01, source: "quasi-static reference rate", estimated: true}
     unloading_ratio: {value: 0.10, source: "ESTIMATE: high hysteresis / slow recovery", estimated: true}
     load_spread_angle_deg: {value: 30, source: "ESTIMATE; commonly assumed 30-45 deg for foam layers", estimated: true}
+    temp_coeff_per_F: {value: 0.012, source: "ESTIMATE: strongly temperature-sensitive urethane, ~-2%/degC; stress x (1 - c (T - 72 F))", estimated: true}
+
+  - id: pc
+    name: "Polycarbonate sheet"
+    model: elastic_plate
+    density_kg_m3: {value: 1200, source: "typical PC datasheet (e.g. SABIC Lexan sheet 1.20 g/cm3)", estimated: true}
+    E_MPa: {value: 2350, source: "typical PC datasheet tensile modulus (e.g. Lexan 9034, 2350 MPa)", estimated: true}
+    poisson: {value: 0.37, source: "typical PC handbook value", estimated: true}
+
+  - id: hdpe
+    name: "HDPE sheet"
+    model: elastic_plate
+    density_kg_m3: {value: 955, source: "typical HDPE sheet, 0.94-0.97 g/cm3", estimated: true}
+    E_MPa: {value: 1000, source: "typical HDPE tensile modulus, 0.8-1.2 GPa", estimated: true}
+    poisson: {value: 0.42, source: "typical HDPE handbook value", estimated: true}

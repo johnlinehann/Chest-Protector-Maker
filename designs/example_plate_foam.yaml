@@ -1,0 +1,13 @@
+# Example protector (protector frame, inches; origin over the cardiac-silhouette centre, +x wearer's left, +y up).
+# Zones are checked in order; the first containing the impact point wins. Layers: ball side first.
+name: "Example: PC plate over PORON, EVA torso"
+zones:
+  - name: cardiac
+    outline: {cx: 0.0, cy: 0.0, a: 4.5, b: 5.0}
+    stack:
+      - {material: pc, thickness_mm: 3, extent: {cx: 0.0, cy: 0.0, a: 3.0, b: 3.5}}
+      - {material: poron_xrd_240, thickness_mm: 15}
+  - name: torso
+    outline: {cx: 0.0, cy: -1.0, a: 7.0, b: 9.0}
+    stack:
+      - {material: eva_100, thickness_mm: 15}

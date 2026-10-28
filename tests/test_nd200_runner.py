@@ -1,9 +1,11 @@
+import math
+
 import pytest
 
 from chestforge.core import calibration
 from chestforge.core.calibration import CalibrationError
-from chestforge.core.nd200_runner import ImpactRecord, ND200Report, random_shifts, run_nd200
-from chestforge.core.padding import PadLayer, load_material
+from chestforge.core.nd200_runner import ImpactRecord, ND200Report, run_nd200
+from chestforge.core.padding import PadLayer, layer, load_material
 
 
 @pytest.fixture(scope="module")
@@ -51,11 +53,10 @@ def test_shifts_follow_torso_band(calibrated, torso, shift):
     assert max(max(abs(c) for c in i.shift_in) for i in rep.impacts) == shift
 
 
-def test_contact_points_respect_min_spacing():
-    with pytest.raises(ValueError):
-        random_shifts(0.5, 1.0)
-    pts = random_shifts(1.75, 1.0)
-    assert pts["cardiac_center"] == (0.0, 0.0)
+def test_uniform_design_random_impacts_respect_spacing(report):
+    for sample in (report.impacts[:3], report.impacts[3:]):
+        pts = [i.shift_in for i in sample]
+        assert all(math.dist(a, b) >= 1.0 for k, a in enumerate(pts) for b in pts[k + 1:])
 
 
 def test_velocity_scale_limited_to_tolerance(calibrated):
@@ -73,3 +74,23 @@ def test_refuses_without_calibration(tmp_path, monkeypatch):
     monkeypatch.setattr(calibration, "_verified", {})
     with pytest.raises(CalibrationError):
         run_nd200(PadLayer(load_material("eva_100"), 0.02))
+
+
+def test_worst_case_shift_finds_plate_edge(calibrated):
+    from chestforge.core.layout import load_design
+    rep = run_nd200(load_design("designs/example_plate_foam.yaml"), torso_length_in=15.0)
+    for sample in (rep.impacts[:3], rep.impacts[3:]):
+        center, r1, r2 = sample
+        assert r1.peak_lbf >= r2.peak_lbf >= center.peak_lbf
+        assert r1.peak_lbf > center.peak_lbf                  # edge-limited spreading is worse
+        assert abs(math.hypot(*r1.shift_in) - 2.0) < 1e-6     # at the §12.2 limit
+        assert math.dist(r1.shift_in, r2.shift_in) >= 1.0     # §12.2 contact spacing
+        assert "plate edge" in r1.local
+
+
+def test_monte_carlo_p95_in_report(calibrated):
+    rep = run_nd200((layer("pc", 4), layer("poron_xrd_240", 15)), mc_samples=16, seed=3)
+    assert rep.has_mc and rep.p95_passed is not None
+    for i in rep.impacts:
+        assert i.p95_lbf is not None and i.mc_samples == 16
+    assert "P95 over 16 Monte Carlo" in rep.to_text()

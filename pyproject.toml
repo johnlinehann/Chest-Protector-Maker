@@ -7,7 +7,7 @@ name = "chestforge"
 version = "0.1.0"
 description = "Simulate and optimize catcher chest-protector padding against NOCSAE ND200-22m25. Simulated — not NOCSAE certified."
 requires-python = ">=3.11"
-dependencies = ["numpy>=1.26", "scipy>=1.11", "pyyaml>=6", "pydantic>=2"]
+dependencies = ["numpy>=1.26", "scipy>=1.11", "pyyaml>=6", "pydantic>=2", "numba>=0.61"]
 
 [project.scripts]
 chestforge = "chestforge.app:main"
