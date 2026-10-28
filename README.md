@@ -11,6 +11,13 @@ python -m chestforge.core.calibration   # fit + verify the NTS model (required b
 pytest -q
 ```
 
+## Desktop icon
+After the quick start, run once with the same Python:
+```bash
+python scripts/install_desktop_shortcut.py
+```
+Creates `ChestForge.lnk` (Windows), `ChestForge.app` (macOS) or `ChestForge.desktop` (Linux) on your desktop. It opens a terminal running `chestforge` (auto-calibrates if needed). Icon source: `scripts/make_icon.py`.
+
 ## Config (never hard-code spec values)
 | File | Contents |
 |---|---|
