@@ -35,4 +35,13 @@ Creates `ChestForge.lnk` (Windows), `ChestForge.app` (macOS) or `ChestForge.desk
 - Output sampled at 20 kHz (≥ 10 kHz, §9.5), SAE J211 CFC120 filtered (§9.6).
 - `require_calibrated()` raises `CalibrationError` if calibration is missing, stale, or failing.
 
-See `docs/PLAN.md` for milestones 2–7.
+## ND200 runner (Milestone 2)
+```bash
+python -m chestforge.core.nd200_runner --material poron_xrd_240 --thickness-mm 30 --torso-in 15
+```
+- Single foam layer: Avalle (2001) curve × Johnson-Cook log rate factor, smooth hysteretic unloading, bottoming flag at densification strain.
+- Ball indents the pad (sphere footprint); force spreads through remaining thickness; only the share on the cardiac silhouette loads the load cell.
+- Runs all 6 Table 1 impacts, random shifts at the §12.2 limit for the torso length (≥ 1 in apart) → PASS/FAIL + margin per impact.
+- Starter materials (EVA, PE, PORON-type) are **estimated**, not measured.
+
+See `docs/PLAN.md` for milestones 3–7.

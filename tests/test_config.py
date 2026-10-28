@@ -71,7 +71,7 @@ def test_every_spec_value_is_sourced(nd):
     _assert_sourced(nd.raw)
 
 
-@pytest.mark.parametrize("name", ["projectiles.yaml", "nts.yaml"])
+@pytest.mark.parametrize("name", ["projectiles.yaml", "nts.yaml", "materials.yaml"])
 def test_model_values_are_sourced_or_estimated(name):
     import yaml
     from chestforge.config import CONFIG_DIR

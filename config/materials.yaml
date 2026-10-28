@@ -1,3 +1,64 @@
-# Padding materials library — populated in Milestone 3.
-# Every value must cite a source or be marked estimated: true.
-materials: []
+# Padding materials library (user-editable). Every value cites a source or is estimated: true.
+# Add your own materials from drop/impact data — Milestone 7 fits these parameters to traces.
+#
+# model: avalle_jc  — compressive foam, 1D
+#   quasi-static (Avalle, Belingardi & Montanini 2001, Int. J. Impact Eng. 25:455-472):
+#     s_qs(e) = A (1 - exp(-(E/A) e (1-e)^m)) + B (e/(1-e))^n
+#   rate (Johnson-Cook log form, loading only):  x (1 + C ln(max(e_dot/e_dot0, 1)))
+#   unloading: s_qs scaled toward unloading_ratio as e_dot < 0 (smooth hysteresis, energy loss)
+#   tension (e < 0): s = E e
+#   bottoming flagged when peak strain >= densification_strain
+#   load spreading: transmitted pressure footprint radius = contact radius + remaining thickness * tan(angle);
+#     the share landing on the cardiac silhouette (area-equivalent circle) goes to the load cell,
+#     the rest to the rigid surrogate body. Bottoming out (no thickness left) removes the spreading.
+#
+# The three starter foams below are NOT fitted to measured curves. Their moduli/plateaus come from
+# Gibson & Ashby scaling (Cellular Solids, 2nd ed., 1997, ch. 5) for the stated density, and their
+# rate/hysteresis constants are engineering estimates. Replace with measured data before trusting
+# absolute numbers.
+
+materials:
+  - id: eva_100
+    name: "EVA foam, closed-cell, 100 kg/m3"
+    model: avalle_jc
+    density_kg_m3: {value: 100, source: "typical protective-padding EVA grade", estimated: true}
+    E_MPa: {value: 2.0, source: "Gibson & Ashby closed-cell scaling, solid EVA E~30 MPa, rho/rho_s~0.11", estimated: true}
+    A_MPa: {value: 0.20, source: "Gibson & Ashby elastic-collapse plateau + cell-gas term", estimated: true}
+    m: {value: 1.0, source: "Avalle 2001 form; mid-range fit exponent", estimated: true}
+    B_MPa: {value: 0.05, source: "chosen so densification stress ~0.7 MPa at e_D", estimated: true}
+    n: {value: 1.5, source: "Avalle 2001 form; mid-range fit exponent", estimated: true}
+    densification_strain: {value: 0.85, source: "Gibson & Ashby e_D = 1 - 1.4 rho/rho_s (rho_s 940 kg/m3)", estimated: true}
+    rate_C: {value: 0.10, source: "ESTIMATE: ~2x dynamic factor at ~1e3 /s", estimated: true}
+    ref_strain_rate: {value: 0.01, source: "quasi-static reference rate", estimated: true}
+    unloading_ratio: {value: 0.30, source: "ESTIMATE: moderate hysteresis", estimated: true}
+    load_spread_angle_deg: {value: 35, source: "ESTIMATE: moderately stiff closed-cell foam; commonly assumed 30-45 deg for foam layers", estimated: true}
+
+  - id: pe_45
+    name: "Polyethylene foam (LDPE), closed-cell, 45 kg/m3"
+    model: avalle_jc
+    density_kg_m3: {value: 45, source: "common LDPE padding grade", estimated: true}
+    E_MPa: {value: 0.8, source: "Gibson & Ashby closed-cell scaling, solid LDPE E~200 MPa, rho/rho_s~0.05", estimated: true}
+    A_MPa: {value: 0.09, source: "Gibson & Ashby plateau + cell-gas term", estimated: true}
+    m: {value: 1.0, source: "Avalle 2001 form; mid-range fit exponent", estimated: true}
+    B_MPa: {value: 0.03, source: "chosen so densification stress ~0.5 MPa at e_D", estimated: true}
+    n: {value: 1.5, source: "Avalle 2001 form; mid-range fit exponent", estimated: true}
+    densification_strain: {value: 0.90, source: "Gibson & Ashby e_D = 1 - 1.4 rho/rho_s (rho_s 920 kg/m3), capped 0.90", estimated: true}
+    rate_C: {value: 0.08, source: "ESTIMATE", estimated: true}
+    ref_strain_rate: {value: 0.01, source: "quasi-static reference rate", estimated: true}
+    unloading_ratio: {value: 0.40, source: "ESTIMATE: resilient closed-cell foam, lower hysteresis", estimated: true}
+    load_spread_angle_deg: {value: 30, source: "ESTIMATE; commonly assumed 30-45 deg for foam layers", estimated: true}
+
+  - id: poron_xrd_240
+    name: "PORON XRD-type rate-sensitive urethane, 240 kg/m3 (15 pcf)"
+    model: avalle_jc
+    density_kg_m3: {value: 240, source: "Rogers PORON XRD 15 pcf grade (nominal density)", estimated: true}
+    E_MPa: {value: 0.5, source: "ESTIMATE: soft at low rate (product literature describes soft/flexible at rest)", estimated: true}
+    A_MPa: {value: 0.08, source: "ESTIMATE", estimated: true}
+    m: {value: 1.0, source: "Avalle 2001 form; mid-range fit exponent", estimated: true}
+    B_MPa: {value: 0.08, source: "ESTIMATE", estimated: true}
+    n: {value: 1.5, source: "Avalle 2001 form; mid-range fit exponent", estimated: true}
+    densification_strain: {value: 0.72, source: "Gibson & Ashby e_D = 1 - 1.4 rho/rho_s (rho_s ~1200 kg/m3)", estimated: true}
+    rate_C: {value: 0.35, source: "ESTIMATE: strongly rate-stiffening urethane (~5x at impact rates)", estimated: true}
+    ref_strain_rate: {value: 0.01, source: "quasi-static reference rate", estimated: true}
+    unloading_ratio: {value: 0.10, source: "ESTIMATE: high hysteresis / slow recovery", estimated: true}
+    load_spread_angle_deg: {value: 30, source: "ESTIMATE; commonly assumed 30-45 deg for foam layers", estimated: true}

@@ -13,7 +13,7 @@ import math
 from dataclasses import dataclass, replace
 
 from chestforge.config import load_nd200, load_nts
-from chestforge.units import LBF_TO_N
+from chestforge.units import IN_TO_M, LBF_TO_N
 
 
 @dataclass(frozen=True)
@@ -60,6 +60,14 @@ def load_nts_prior(reference_mass_kg: float) -> NTS:
     )
     nts.check_table_mass()
     return nts
+
+
+def silhouette_radius_m() -> float:
+    """Area-equivalent circle of the cardiac silhouette ellipse (ND200 Figure 1)."""
+    g = load_nd200().raw["surrogate"]["geometry"]
+    a = 0.5 * g["silhouette_width_in"]["value"]
+    b = 0.5 * g["silhouette_height_in"]["value"]
+    return math.sqrt(a * b) * IN_TO_M
 
 
 def lbf(newtons: float) -> float:

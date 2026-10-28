@@ -67,3 +67,4 @@ web/  data/experimental/  tests/
 ## Status
 - ND200 values verified against the NOCSAE PDF (Dec 2025); Figure 1 NTS geometry encoded.
 - M1 complete: 44 tests passing.
+- M2 complete: single-layer pad + ND200 runner, 76 tests passing. Foam-only designs (10-40 mm, 3 estimated foams) all FAIL; plates/load spreading are M3.
