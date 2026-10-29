@@ -22,6 +22,7 @@ from chestforge.core.surrogate import NTS, silhouette_radius_m
 from chestforge.units import n_to_lbf
 
 FAR = 1.0e3  # m, "plate edge is nowhere near"
+PRE_TRIGGER_S = 0.005  # zero lead-in before contact when filtering
 
 
 @dataclass(frozen=True)
@@ -38,6 +39,35 @@ class ChainArrays:
     pl_reach: np.ndarray
     backing_mass: float
     foams: tuple            # FoamLayer per element index
+
+
+@dataclass(frozen=True)
+class Rig:
+    """What the stack sits on and what the load cell measures.
+
+    m2/k2/c2: load-cell side (loading surface on its spring), m3: body behind it (free),
+    k_found: elastic foundation under plates (N/m^3), r_share: radius of the instrumented area
+    (force outside it bypasses the load cell), gain: data-acquisition gain."""
+    name: str
+    m2: float
+    m3: float
+    k2: float
+    c2: float
+    gain: float
+    k_found: float
+    r_share: float
+
+    @classmethod
+    def nts(cls, nts: NTS) -> "Rig":
+        return cls("nts", nts.loading_surface_mass_kg, nts.back_mass_kg, nts.skin_stiffness_N_per_m,
+                   nts.skin_damping_Ns_per_m, nts.gain, nts_foundation_modulus(nts), silhouette_radius_m())
+
+    @classmethod
+    def drop_tower(cls, load_cell_cap_kg: float = 0.1, stiffness_N_per_m: float = 5.0e7,
+                   damping_ratio: float = 0.05) -> "Rig":
+        """Pads on a rigid, fully instrumented anvil (load cell under the whole sample)."""
+        c = 2 * damping_ratio * math.sqrt(stiffness_N_per_m * load_cell_cap_kg)
+        return cls("drop_tower", load_cell_cap_kg, 1.0e4, stiffness_N_per_m, c, 1.0, 1.0e12, 1.0e3)
 
 
 def nts_foundation_modulus(nts: NTS) -> float:
@@ -143,8 +173,10 @@ class BatchResult:
 
 def simulate_batch(balls: Sequence[Projectile], nts: NTS, velocities_ms: Sequence[float],
                    temps_F: Sequence[float], stack: Stack = (),
-                   plate_reach_m: Sequence[float] | None = None) -> BatchResult:
-    """N impacts on one local stack, one ball/velocity/temperature per sample (parallel)."""
+                   plate_reach_m: Sequence[float] | None = None, rig: Rig | None = None) -> BatchResult:
+    """N impacts on one local stack, one ball/velocity/temperature per sample (parallel).
+    `rig` defaults to the NOCSAE thoracic surrogate; pass Rig.drop_tower() for material tests."""
+    rig = rig or Rig.nts(nts)
     solver = load_nts()["solver"]
     nd = load_nd200()
     fs = solver["output_rate_hz"]
@@ -158,8 +190,7 @@ def simulate_batch(balls: Sequence[Projectile], nts: NTS, velocities_ms: Sequenc
         raise ValueError("balls, velocities and temperatures must have equal length")
 
     R_ref = float(np.mean([b.radius_m for b in balls]))
-    k_nts = nts_foundation_modulus(nts)
-    ch = build_chain(tuple(stack), R_ref, k_nts, plate_reach_m)
+    ch = build_chain(tuple(stack), R_ref, rig.k_found, plate_reach_m)
     e_tf = np.array([[f.material.temp_factor(T) for f in ch.foams] for T in temps_F]).reshape(n, len(ch.foams))
     args = dict(
         mb=np.array([b.mass_kg for b in balls]), kc=np.array([b.contact_stiffness for b in balls]),
@@ -175,8 +206,7 @@ def simulate_batch(balls: Sequence[Projectile], nts: NTS, velocities_ms: Sequenc
             *(args[k][idx] for k in ("mb", "kc", "nc", "cor", "R", "v0", "e_tf")),
             ch.node_mass, ch.contact_node, ch.e_top, ch.e_bot, ch.e_par, ch.e_h, ch.l_kind, ch.l_ref,
             ch.pl_D, ch.pl_reach,
-            nts.loading_surface_mass_kg + ch.backing_mass, nts.back_mass_kg,
-            nts.skin_stiffness_N_per_m, nts.skin_damping_Ns_per_m, nts.gain, k_nts, silhouette_radius_m(),
+            rig.m2 + ch.backing_mass, rig.m3, rig.k2, rig.c2, rig.gain, rig.k_found, rig.r_share,
             dt, int(round(solver["duration_s"] / dt)), decim,
             solver["stop_fraction"], int(round(solver["stop_hold_s"] / dt)),
         )
@@ -195,9 +225,15 @@ def simulate_batch(balls: Sequence[Projectile], nts: NTS, velocities_ms: Sequenc
         out_f[sub], share[sub], maxima[sub], max_strain[sub], energies[sub] = f2, s2, m2_, ms2, e2
     if maxima[:, 2].any():
         raise RuntimeError("impact integration diverged (non-finite state); reduce solver.min_dt_s")
+    # A lab record has pre-trigger samples; give the phaseless filter the same quiet lead-in so its
+    # end padding does not mirror the rising edge (that shifted and distorted the simulated pulse).
+    # The lead-in is kept in the returned traces (t starts at -PRE_TRIGGER_S), as in a lab record.
+    pre = int(round(PRE_TRIGGER_S * fs))
+    out_f = np.pad(out_f, ((0, 0), (pre, 0)))
+    share = np.pad(share, ((0, 0), (pre, 0)), mode="edge")
     filt = cfc_filter(out_f, fs, nd.filter_cfc)
     return BatchResult(
-        t=np.arange(out_f.shape[1]) / fs, force_raw_N=out_f, force_N=filt, load_cell_share=share,
+        t=(np.arange(out_f.shape[1]) - pre) / fs, force_raw_N=out_f, force_N=filt, load_cell_share=share,
         peak_N=filt.max(axis=1), max_ball_compression_m=maxima[:, 0], max_skin_compression_m=maxima[:, 1],
         max_strain=max_strain, energies=energies, chain=ch,
     )
@@ -261,9 +297,10 @@ def _as_stack(pad) -> Stack:
 
 
 def simulate_impact(projectile: Projectile, nts: NTS, velocity_ms: float, pad=None,
-                    temp_F: float = 72.0, plate_reach_m: Sequence[float] | None = None) -> ImpactResult:
+                    temp_F: float = 72.0, plate_reach_m: Sequence[float] | None = None,
+                    rig: Rig | None = None) -> ImpactResult:
     """One impact. `pad` is None (bare NTS), a single layer, or a stack (ball side first)."""
-    res = simulate_batch([projectile], nts, [velocity_ms], [temp_F], _as_stack(pad), plate_reach_m)
+    res = simulate_batch([projectile], nts, [velocity_ms], [temp_F], _as_stack(pad), plate_reach_m, rig)
     return _single(res, 0, projectile, velocity_ms)
 
 

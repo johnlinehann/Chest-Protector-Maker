@@ -101,3 +101,8 @@ code { color: var(--ink2); }
   .viewer { height: 420px; }
 }
 #report.stale > *:not(.empty) { opacity: .45; }
+table.vlist { width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0; }
+table.vlist td, table.vlist th { padding: 4px; border-bottom: 1px solid var(--line); text-align: left; }
+.tag { font-size: 10px; border: 1px solid var(--warn); color: var(--warn); border-radius: 999px; padding: 0 6px; }
+.charts-sm { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.charts-sm .title { font-size: 11px; }

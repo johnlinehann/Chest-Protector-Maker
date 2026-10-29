@@ -25,7 +25,8 @@ def _scipy_bare_peak(ball, nts, v0):
     t = np.arange(0, 0.03, 1 / 20000)
     sol = solve_ivp(rhs, (0, t[-1]), [0, v0, 0, 0, 0, 0], t_eval=t, max_step=2e-5, rtol=1e-9, atol=1e-12)
     x1, v1, x2, v2, x3, v3 = sol.y
-    return n_to_lbf(cfc_filter(nts.gain * (k2 * (x2 - x3) + c2 * (v2 - v3)), 20000, 120).max())
+    raw = np.pad(nts.gain * (k2 * (x2 - x3) + c2 * (v2 - v3)), (100, 0))   # 5 ms pre-trigger, as recorded
+    return n_to_lbf(cfc_filter(raw, 20000, 120).max())
 
 
 @pytest.mark.parametrize("mph", [30, 50])

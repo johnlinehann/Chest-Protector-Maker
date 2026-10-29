@@ -75,4 +75,10 @@ python -m chestforge.geometry.export --run run1 --rank 1      # an optimizer top
 - Curved pads on a cylindrical chest (radius and silhouette position from ND200 Figure 1, scaled by torso length); outlines wrapped by arc length, so plate sizes match the optimizer.
 - Writes to `exports/<design>/`: `protector.step` (one named solid per layer), `protector.stl` + one STL per layer, `ntop_lattice.json` (TPU gyroid/Kelvin/honeycomb relative density matching each foam's plateau — Gibson & Ashby, **estimated, not simulated**), `landmarks.json` (silhouette + shift circle in 3D for the viewer), `summary.json` (volumes, CAD mass).
 
-See `docs/PLAN.md` for milestone 7.
+## Experimental calibration (Milestone 7)
+Import measured force-time traces (NOCSAE surrogate or a drop tower), compare against the model and fit
+parameters — see [`data/experimental/README.md`](data/experimental/README.md) or the UI **Validation** tab.
+Fits go to `config/nts_fitted.yaml` / `config/materials_fitted.yaml` (delete to revert); fits from the
+bundled SYNTHETIC examples are refused.
+
+See `docs/PLAN.md` for the build history.

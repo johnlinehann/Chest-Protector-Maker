@@ -321,7 +321,7 @@ function traceChart(imps) {
   svg('line', { x1: m.l, x2: W - m.r, y1: y(lim), y2: y(lim), stroke: css('--bad'), 'stroke-dasharray': '5 4', 'stroke-width': 1.2 }, s);
   svg('text', { x: W - m.r, y: y(lim) - 4, 'text-anchor': 'end', 'font-size': 9, fill: css('--bad') }, s).textContent = `limit ${lim} lbf`;
   imps.forEach((i, k) => {
-    const pts = i.t_ms.map((tt, j) => (tt <= tmax ? `${x(tt).toFixed(1)},${y(Math.max(i.force_lbf[j], 0)).toFixed(1)}` : null)).filter(Boolean);
+    const pts = i.t_ms.map((tt, j) => (tt >= 0 && tt <= tmax ? `${x(tt).toFixed(1)},${y(Math.max(i.force_lbf[j], 0)).toFixed(1)}` : null)).filter(Boolean);
     svg('polyline', { points: pts.join(' '), fill: 'none', stroke: css(SERIES[k]), 'stroke-width': 2, 'stroke-linejoin': 'round',
       'stroke-dasharray': k === 2 ? '6 4' : null }, s);
   });
@@ -340,7 +340,7 @@ function traceChart(imps) {
     if (tt < 0 || tt > tmax) return;
     cross.setAttribute('x1', x(tt)); cross.setAttribute('x2', x(tt)); cross.setAttribute('visibility', 'visible');
     const rows = imps.map((i) => {
-      const j = Math.min(i.t_ms.length - 1, Math.round(tt / (i.t_ms[1] - i.t_ms[0] || 0.05)));
+      const j = Math.max(0, Math.min(i.t_ms.length - 1, Math.round((tt - i.t_ms[0]) / (i.t_ms[1] - i.t_ms[0] || 0.05))));
       return `${i.location.replace('_', ' ')}: ${fmt(i.force_lbf[j] ?? 0)} lbf`;
     });
     tip.innerHTML = `<b>${tt.toFixed(2)} ms</b><br>${rows.join('<br>')}`;
@@ -487,12 +487,116 @@ async function startRun() {
   } catch (e) { $('#runstatus').textContent = e.message; }
 }
 
+// ------------------------------------------------------------------ validation (measured traces)
+async function loadTraces(select = []) {
+  const list = await (await api('/api/validation/traces')).json();
+  const t = el('table', { class: 'vlist' }, el('tr', {}, ['', 'Trace', 'Peak lbf'].map((h) => el('th', {}, h))));
+  for (const x of list) {
+    if (x.error) { t.append(el('tr', {}, el('td', {}), el('td', { colspan: 2, class: 'fail' }, `${x.file}: ${x.error}`))); continue; }
+    t.append(el('tr', {},
+      el('td', {}, el('input', { type: 'checkbox', value: x.file, checked: select.includes(x.file) || !select.length ? '' : null, 'aria-label': `use ${x.file}` })),
+      el('td', { title: x.file }, x.file.split('/').pop(), ' ', x.synthetic ? el('span', { class: 'tag', title: 'generated, not measured' }, 'synthetic') : null,
+        el('div', { class: 'hint' }, `${x.rig.replace('_', ' ')} · ${x.stack} · ${fmt(x.velocity_ms, 2)} m/s`),
+        ...(x.warnings || []).map((w) => el('div', { class: 'hint' }, w))),
+      el('td', {}, fmt(x.peak_lbf))));
+  }
+  $('#vallist').replaceChildren(list.length ? t : el('p', { class: 'empty' }, 'No traces yet — upload one.'));
+}
+
+const chosenTraces = () => [...document.querySelectorAll('#vallist input:checked')].map((c) => c.value);
+
+function overlayChart(c) {
+  const W = 220, H = 130, m = { l: 30, r: 6, t: 8, b: 18 };
+  const series = [['measured', c.measured, css('--ink'), null], ['model', c.model, css('--s1'), null]];
+  if (c.fitted) series.push(['fitted', c.fitted, css('--s2'), '5 3']);
+  const tmax = Math.max(...c.measured.t_ms), ymax = Math.max(...series.flatMap(([, d]) => d.lbf)) * 1.08;
+  const X = (v) => m.l + (v + 1) / (tmax + 1) * (W - m.l - m.r), Y = (v) => H - m.b - v / ymax * (H - m.t - m.b);
+  const s = svg('svg', { viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': `overlay ${c.trace}` });
+  for (let k = 0; k <= 2; k++) {
+    const v = ymax / 2 * k;
+    svg('line', { x1: m.l, x2: W - m.r, y1: Y(v), y2: Y(v), stroke: css('--line'), 'stroke-width': 0.5 }, s);
+    svg('text', { x: m.l - 3, y: Y(v) + 3, 'text-anchor': 'end', 'font-size': 8, fill: css('--ink2') }, s).textContent = v.toFixed(0);
+  }
+  svg('text', { x: W - m.r, y: H - 4, 'text-anchor': 'end', 'font-size': 8, fill: css('--ink2') }, s).textContent = `${tmax.toFixed(0)} ms`;
+  for (const [, d, color, dash] of series) {
+    svg('polyline', { points: d.t_ms.map((tt, j) => `${X(tt).toFixed(1)},${Y(Math.max(d.lbf[j], 0)).toFixed(1)}`).join(' '),
+      fill: 'none', stroke: color, 'stroke-width': color === css('--ink') ? 2.2 : 1.5, 'stroke-dasharray': dash }, s);
+  }
+  return el('div', { class: 'chart' }, el('div', { class: 'title' }, c.trace), s);
+}
+
+function summaryCards(before, after) {
+  const card = (k, b, a, unit, d = 1) => el('div', { class: 'card' }, el('div', { class: 'k' }, k),
+    el('div', { class: 'v' }, a === undefined ? `${fmt(b, d)}${unit}` : `${fmt(b, d)} → ${fmt(a, d)}${unit}`));
+  return el('div', { class: 'verdicts' },
+    card('mean |peak error|', before.mean_abs_peak_err_pct, after?.mean_abs_peak_err_pct, '%'),
+    card('mean NRMSE', before.mean_abs_nrmse_pct, after?.mean_abs_nrmse_pct, '%'),
+    card('mean R²', before.mean_r2, after?.mean_r2, '', 3));
+}
+
+function legendLine(fitted) {
+  return el('p', { class: 'hint' }, el('span', { style: `color:${css('--ink')}` }, '━ measured  '),
+    el('span', { style: `color:${css('--s1')}` }, '━ current model  '), fitted ? el('span', { style: `color:${css('--s2')}` }, '╍ fitted model') : null);
+}
+
+async function valCompare() {
+  const out = $('#valout');
+  out.innerHTML = '<span class="spin"></span>simulating each test…';
+  try {
+    const r = await (await api('/api/validation/compare', { files: chosenTraces() })).json();
+    const t = el('table', { class: 'imp' }, el('tr', {}, ['Trace', 'Peak meas', 'Peak sim', 'Err', 'NRMSE', 'R²'].map((h) => el('th', {}, h))));
+    for (const x of r.rows) t.append(el('tr', {}, el('td', {}, x.trace), el('td', {}, fmt(x.peak_exp_lbf)), el('td', {}, fmt(x.peak_sim_lbf)),
+      el('td', {}, `${fmt(x.peak_err_pct)}%`), el('td', {}, `${fmt(x.nrmse_pct)}%`), el('td', {}, fmt(x.r2, 3))));
+    out.replaceChildren(summaryCards(r.summary), t, legendLine(false), el('div', { class: 'charts-sm' }, r.curves.map(overlayChart)));
+  } catch (e) { out.textContent = `compare failed: ${e.message}`; }
+}
+
+async function valFit(kind) {
+  const out = $('#valout');
+  out.innerHTML = '<span class="spin"></span>fitting (tens of simulations)…';
+  const body = { kind, files: chosenTraces() };
+  if (kind === 'material') { body.material = $('#valmat').value; if ($('#valnewid').value) body.new_id = $('#valnewid').value; }
+  try {
+    const r = await (await api('/api/validation/fit', body)).json();
+    const p = r.params;
+    const plist = kind === 'nts'
+      ? Object.entries(p).map(([k, v]) => el('li', {}, `${k}: ${Number(v).toPrecision(4)}`))
+      : [el('li', {}, `new material id: ${p.new_id} (from ${p.base})`), ...Object.entries(p.multipliers).map(([k, v]) => el('li', {}, `${k} × ${fmt(v, 3)}`)),
+         ...(Object.keys(p.correlation).length ? [el('li', { class: 'beyond' }, `not separately identifiable: ${Object.keys(p.correlation).join(', ')}`)] : [])];
+    const apply = el('button', { class: 'primary', disabled: r.synthetic ? '' : null, title: r.synthetic ? 'synthetic traces cannot be applied' : 'write to config' },
+      r.synthetic ? 'Apply (blocked: synthetic data)' : 'Apply to configuration');
+    apply.addEventListener('click', async () => {
+      if (!confirm(kind === 'nts' ? 'Write config/nts_fitted.yaml and recalibrate the NTS?' : `Add material ${p.new_id} to config/materials_fitted.yaml?`)) return;
+      try { const a = await (await api(`/api/validation/apply/${r.fit_id}`, {})).json(); apply.replaceWith(el('p', { class: 'pass' }, `Applied: ${JSON.stringify(a)}`)); state.meta = null; }
+      catch (e) { apply.replaceWith(el('p', { class: 'fail' }, e.message)); }
+    });
+    out.replaceChildren(summaryCards(r.before, r.after), el('ul', { class: 'flags', style: `color:${css('--ink2')}` }, plist),
+      el('div', { class: 'actions' }, apply), legendLine(true), el('div', { class: 'charts-sm' }, r.curves.map(overlayChart)));
+  } catch (e) { out.textContent = `fit failed: ${e.message}`; }
+}
+
+async function valUpload(ev) {
+  const f = ev.target.files[0];
+  if (!f) return;
+  const fd = new FormData();
+  fd.append('file', f);
+  try {
+    const r = await (await fetch('/api/validation/upload', { method: 'POST', body: fd })).json();
+    if (r.detail) throw new Error(typeof r.detail === 'string' ? r.detail : JSON.stringify(r.detail));
+    await loadTraces([r.file]);
+    $('#valout').textContent = `uploaded ${r.file}${r.warnings.length ? ' — ' + r.warnings.join('; ') : ''}`;
+  } catch (e) { $('#valout').textContent = `upload failed: ${e.message}`; }
+  ev.target.value = '';
+}
+
 // ------------------------------------------------------------------ tabs + boot
 function selectTab(name) {
   for (const b of document.querySelectorAll('.tabs button')) b.setAttribute('aria-selected', String(b.dataset.tab === name));
   $('#tab-report').hidden = name !== 'report';
   $('#tab-opt').hidden = name !== 'opt';
+  $('#tab-val').hidden = name !== 'val';
   if (name === 'opt') loadRuns();
+  if (name === 'val') loadTraces();
 }
 
 async function boot() {
@@ -515,6 +619,11 @@ async function boot() {
   $('#xobj').addEventListener('change', drawPareto);
   $('#yobj').addEventListener('change', drawPareto);
   $('#startrun').addEventListener('click', startRun);
+  $('#valmat').replaceChildren(...state.meta.materials.filter((m) => m.kind === 'foam').map((m) => el('option', { value: m.id }, m.id)));
+  $('#valcompare').addEventListener('click', valCompare);
+  $('#valfitnts').addEventListener('click', () => valFit('nts'));
+  $('#valfitmat').addEventListener('click', () => valFit('material'));
+  $('#valupload').addEventListener('change', valUpload);
 }
 
 boot().catch((e) => { document.body.prepend(el('p', { class: 'fail' }, `ChestForge failed to start: ${e.message}`)); });

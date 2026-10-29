@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -345,6 +345,146 @@ def optimize_log(name: str) -> dict:
     _run_name(name)
     f = RUNS / name / "log.txt"
     return {"running": _running(name), "log": f.read_text()[-4000:] if f.exists() else ""}
+
+
+# ---------- experimental validation (Milestone 7) ----------
+
+EXP = ROOT / "data" / "experimental"
+_fits: dict[str, object] = {}
+
+
+class FilesIn(BaseModel):
+    files: list[str] = Field(..., min_length=1, max_length=50)
+
+
+class FitIn(FilesIn):
+    kind: Literal["nts", "material"]
+    material: str | None = Field(None, max_length=64)
+    new_id: str | None = Field(None, pattern=r"^[a-z0-9_]{1,40}$")
+
+
+def _exp_path(rel: str) -> Path:
+    p = (EXP / rel).resolve()
+    if EXP.resolve() not in p.parents or p.suffix.lower() != ".csv" or not p.is_file():
+        raise HTTPException(422, f"not a trace under data/experimental: {rel}")
+    return p
+
+
+def _traces(files: list[str]):
+    from chestforge.validation.traces import load_trace
+    out = []
+    for f in files:
+        try:
+            out.append(load_trace(_exp_path(f)))
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+    return out
+
+
+def _curve(t, f, step: int = 2) -> dict:
+    keep = (t >= -1e-3) & (t <= 0.03)
+    return {"t_ms": np.round(t[keep][::step] * 1000, 3).tolist(), "lbf": np.round(f[keep][::step] / 4.4482216152605, 2).tolist()}
+
+
+@app.get("/api/validation/traces")
+def validation_traces() -> list[dict]:
+    from chestforge.validation.traces import load_trace
+    out = []
+    if EXP.exists():
+        for p in sorted(EXP.rglob("*.csv")):
+            rel = str(p.relative_to(EXP))
+            try:
+                t = load_trace(p)
+                out.append({"file": rel, "rig": t.rig, "stack": ", ".join(f"{l.material.id}:{l.thickness_m * 1000:g}" for l in t.stack) or "bare",
+                            "velocity_ms": t.velocity_ms, "synthetic": t.synthetic, "peak_lbf": t.peak_N / 4.4482216152605,
+                            "warnings": t.warnings, "error": None})
+            except Exception as e:  # list unreadable files with the reason instead of failing the listing
+                out.append({"file": rel, "error": str(e)})
+    return out
+
+
+@app.post("/api/validation/upload")
+async def validation_upload(request: Request) -> dict:
+    from chestforge.validation.traces import load_trace
+    form = await request.form()
+    up = form.get("file")
+    if up is None or not hasattr(up, "read"):
+        raise HTTPException(422, "multipart field 'file' required")
+    name = re.sub(r"[^A-Za-z0-9_.-]+", "_", Path(up.filename or "trace.csv").name)[:80]
+    if not name.lower().endswith(".csv"):
+        raise HTTPException(422, "upload a .csv trace")
+    data = await up.read()
+    if len(data) > 5_000_000:
+        raise HTTPException(413, "trace larger than 5 MB")
+    dest = EXP / "uploads" / name
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    dest.write_bytes(data)
+    try:
+        t = load_trace(dest)
+    except ValueError as e:
+        dest.unlink()
+        raise HTTPException(422, f"rejected: {e}") from e
+    return {"file": str(dest.relative_to(EXP)), "warnings": t.warnings, "synthetic": t.synthetic}
+
+
+@app.post("/api/validation/compare")
+def validation_compare(req: FilesIn) -> dict:
+    from chestforge.validation import fit as F
+    traces = _traces(req.files)
+    res = F.validate(traces)
+    curves = []
+    for t in traces:
+        ts, fs = F.simulate_trace(t, F._nts_for(t))
+        curves.append({"trace": t.name, "measured": _curve(t.t_s, t.force_N), "model": _curve(ts, fs)})
+    return {**res, "curves": curves}
+
+
+@app.post("/api/validation/fit")
+def validation_fit(req: FitIn) -> dict:
+    import uuid
+    from dataclasses import replace as dc_replace
+    from chestforge.validation import fit as F
+    traces = _traces(req.files)
+    try:
+        if req.kind == "nts":
+            res = F.fit_nts(traces)
+            used = [t for t in traces if t.rig == "nts" and not t.stack]
+            fitted = lambda t: F.simulate_trace(t, dc_replace(F._nts_for(t), **{k: v for k, v in res.params.items()}))
+            params = res.params
+        else:
+            if not req.material:
+                raise HTTPException(422, "material required for a material fit")
+            res = F.fit_material(traces, req.material, req.new_id)
+            used = [t for t in traces if t.name in res.traces]
+            m = res.params["material"]
+            fitted = lambda t: F.simulate_trace(t, F._nts_for(t), F._with_material(t.stack, req.material, m))
+            params = {"base": res.params["base"], "new_id": res.params["new_id"],
+                      "multipliers": res.params["multipliers"], "correlation": res.params["correlation"]}
+    except ValueError as e:
+        raise HTTPException(422, str(e)) from e
+    curves = []
+    for t in used:
+        ts, fs = F.simulate_trace(t, F._nts_for(t))
+        tf, ff = fitted(t)
+        curves.append({"trace": t.name, "measured": _curve(t.t_s, t.force_N), "model": _curve(ts, fs), "fitted": _curve(tf, ff)})
+    fit_id = uuid.uuid4().hex[:12]
+    _fits[fit_id] = res
+    return {"fit_id": fit_id, "kind": res.kind, "params": params, "before": res.before, "after": res.after,
+            "rows_after": res.extra["rows_after"], "synthetic": res.synthetic, "traces": res.traces, "curves": curves}
+
+
+@app.post("/api/validation/apply/{fit_id}")
+def validation_apply(fit_id: str) -> dict:
+    from chestforge.validation import fit as F
+    res = _fits.get(fit_id)
+    if res is None:
+        raise HTTPException(404, "unknown or expired fit")
+    try:
+        out = F.apply_nts(res) if res.kind == "nts" else F.apply_material(res)
+    except F.SyntheticDataError as e:
+        raise HTTPException(409, str(e)) from e
+    _fits.pop(fit_id, None)
+    return out
 
 
 # ---------- static UI ----------

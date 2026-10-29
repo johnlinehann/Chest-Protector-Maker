@@ -54,6 +54,7 @@
     <nav class="tabs" role="tablist">
       <button role="tab" aria-selected="true" data-tab="report">ND200 report</button>
       <button role="tab" aria-selected="false" data-tab="opt">Optimizer</button>
+      <button role="tab" aria-selected="false" data-tab="val">Validation</button>
     </nav>
     <div id="tab-report" class="tab">
       <div id="report"><p class="empty">Edit the stack, then <b>Run ND200</b> to simulate the six Table 1 impacts.</p></div>
@@ -80,6 +81,22 @@
       <div id="pareto" class="chart"></div>
       <p class="hint">Click a point to load that design into the editor.</p>
       <pre id="runlog" class="log" hidden></pre>
+    </div>
+    <div id="tab-val" class="tab" hidden>
+      <p class="hint">Measured force-time traces in <code>data/experimental/</code> (CSV format: <code>python -m chestforge.validation template</code>).
+        Synthetic examples are labelled and can never be applied to the configuration.</p>
+      <label class="full">Upload trace (.csv) <input id="valupload" type="file" accept=".csv"></label>
+      <div id="vallist"></div>
+      <div class="actions wrap">
+        <button id="valcompare">Compare model vs measured</button>
+        <button id="valfitnts">Fit NTS (bare traces)</button>
+      </div>
+      <div class="grid2">
+        <label>Material to fit <select id="valmat"></select></label>
+        <label>Save fitted as id <input id="valnewid" placeholder="e.g. eva_100_lab" pattern="[a-z0-9_]{1,40}"></label>
+      </div>
+      <div class="actions"><button id="valfitmat">Fit material</button></div>
+      <div id="valout" role="status"></div>
     </div>
   </section>
 </main>

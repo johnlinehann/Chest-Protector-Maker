@@ -72,3 +72,4 @@ web/  data/experimental/  tests/
 - M4 complete: TPE / NSGA-II / GP-surrogate optimizer with P95 margin constraint, Pareto + top-5 reports.
 - M5 complete: build123d geometry, STEP/STL, nTop lattice JSON, viewer landmarks.
 - M6 complete: FastAPI + Three.js UI (editor, 3D viewer, ND200 report, optimizer Pareto), PDF/CSV/CAD exports.
+- M7 complete: trace import (NTS + drop tower), sim-vs-test metrics, NTS + material fitting with override files, Validation UI tab. Found and fixed a filter lead-in bug that shifted simulated pulses (~1% on peaks). 140 tests.

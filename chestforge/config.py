@@ -124,9 +124,21 @@ def load_projectiles() -> dict:
     return _read("projectiles.yaml")
 
 
+NTS_FITTED = "nts_fitted.yaml"           # written by chestforge.validation (fit to measured traces)
+MATERIALS_FITTED = "materials_fitted.yaml"
+
+
 @lru_cache
 def load_nts() -> dict:
-    return _read("nts.yaml")
+    """nts.yaml with any fitted overrides (config/nts_fitted.yaml) merged over the estimates."""
+    d = _read("nts.yaml")
+    f = CONFIG_DIR / NTS_FITTED
+    if f.exists():
+        for k, v in (yaml.safe_load(f.read_text()) or {}).get("overrides", {}).items():
+            if k not in d:
+                raise ValueError(f"{NTS_FITTED}: unknown key {k!r}")
+            d[k] = v
+    return d
 
 
 @lru_cache
@@ -138,5 +150,6 @@ def config_hash(*names: str) -> str:
     """Hash of config files; a calibration is invalidated when any of them changes."""
     h = hashlib.sha256()
     for n in names:
-        h.update((CONFIG_DIR / n).read_bytes())
+        f = CONFIG_DIR / n
+        h.update(n.encode() + (f.read_bytes() if f.exists() else b"<absent>"))
     return h.hexdigest()[:16]

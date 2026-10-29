@@ -27,7 +27,7 @@ from chestforge.core.surrogate import NTS, load_nts_prior
 from chestforge.units import mph_to_ms
 
 CALIBRATION_FILE = CONFIG_DIR / "nts_calibrated.yaml"
-_HASHED = ("nd200.yaml", "projectiles.yaml", "nts.yaml")
+_HASHED = ("nd200.yaml", "projectiles.yaml", "nts.yaml", "nts_fitted.yaml")
 
 
 class CalibrationError(RuntimeError):

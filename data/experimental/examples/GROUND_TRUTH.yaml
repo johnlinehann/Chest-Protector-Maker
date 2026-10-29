@@ -1,0 +1,11 @@
+note: Parameters used to generate the SYNTHETIC traces in this folder.
+nts:
+  skin_stiffness_N_per_m: 30253.87
+  skin_damping_ratio: 0.3
+  loading_surface_mass_kg: 0.11
+eva_100_multipliers:
+  A_Pa: 1.4
+  E_Pa: 1.2
+  B_Pa: 1.0
+  rate_C: 0.7
+  unloading_ratio: 0.5

@@ -152,8 +152,17 @@ def _val(entry: dict) -> float:
 
 
 def _load_raw() -> list[dict]:
+    """materials.yaml plus fitted materials (config/materials_fitted.yaml, written by chestforge.validation)."""
     with open(CONFIG_DIR / "materials.yaml") as f:
-        return yaml.safe_load(f)["materials"]
+        mats = yaml.safe_load(f)["materials"]
+    fitted = CONFIG_DIR / "materials_fitted.yaml"
+    if fitted.exists():
+        extra = (yaml.safe_load(fitted.read_text()) or {}).get("materials", [])
+        clash = {m["id"] for m in mats} & {m["id"] for m in extra}
+        if clash:
+            raise ValueError(f"materials_fitted.yaml redefines {sorted(clash)}; fitted materials need new ids")
+        mats = mats + extra
+    return mats
 
 
 def load_materials() -> dict[str, FoamMaterial | PlateMaterial]:

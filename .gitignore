@@ -9,3 +9,4 @@ dist/
 config/nts_calibrated.yaml
 runs/
 exports/
+data/experimental/uploads/
