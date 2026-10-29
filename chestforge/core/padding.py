@@ -6,6 +6,7 @@ A stack is a tuple of layers ordered from the ball side to the body side.
 from __future__ import annotations
 
 import math
+from functools import lru_cache
 from dataclasses import dataclass
 from typing import Union
 
@@ -156,6 +157,12 @@ def _load_raw() -> list[dict]:
 
 
 def load_materials() -> dict[str, FoamMaterial | PlateMaterial]:
+    return dict(_materials())
+
+
+@lru_cache
+def _materials() -> dict[str, FoamMaterial | PlateMaterial]:
+    """Parsed once per process (materials are frozen dataclasses)."""
     out = {}
     for m in _load_raw():
         est = any(isinstance(v, dict) and v.get("estimated", False) for v in m.values())
@@ -183,7 +190,7 @@ def load_materials() -> dict[str, FoamMaterial | PlateMaterial]:
 
 
 def load_material(material_id: str) -> FoamMaterial | PlateMaterial:
-    mats = load_materials()
+    mats = _materials()
     if material_id not in mats:
         raise KeyError(f"unknown material {material_id!r}; available: {sorted(mats)}")
     return mats[material_id]

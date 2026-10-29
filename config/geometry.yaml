@@ -1,0 +1,28 @@
+# Parametric shell geometry (Milestone 5). Body frame: mm, origin at the jugular notch on the
+# midline, +X wearer's left, +Y up, +Z out of the chest. The chest is modelled as a vertical
+# cylinder (single curvature, like a thermoformed plate); pads are radial slabs on it.
+
+body:
+  reference_torso_length_in: {value: 12.50, source: "ND200 Figure 1 (NTS torso length)", verified: true}
+  silhouette_center_from_midline_in: {value: 1.5, source: "ND200 Figure 1: silhouette spans centre line to 3.000 in (wearer's left)", verified: false, estimated: true}
+  silhouette_center_below_notch_in: {value: 3.527, source: "ND200 Figure 1: 1.797 in + 3.460 in / 2", verified: true}
+  chest_radius_in: {value: 6.0, source: "ESTIMATE: horizontal chest-wall curvature at reference torso length", estimated: true}
+  scale_with_torso_length: true   # silhouette offsets and chest radius scale with L / reference
+
+export:
+  outline_points: 96              # polygon points per ellipse outline
+  stl_tolerance_mm: 0.2
+  stl_angular_tolerance_deg: 10
+
+# nTop lattice suggestions: replace a foam layer with a TPU lattice of matching plateau stress.
+# Gibson & Ashby (Cellular Solids, 2nd ed., 1997): plateau ~ C (rho_rel)^k x solid strength.
+lattice:
+  solid:
+    name: "TPU 95A (printed)"
+    density_kg_m3: {value: 1200, source: "typical TPU 95A datasheet", estimated: true}
+    yield_strength_MPa: {value: 8.0, source: "ESTIMATE: compressive flow stress of printed TPU 95A", estimated: true}
+  cells:
+    gyroid:    {C: 0.3, k: 1.5, source: "bending-dominated scaling (Gibson & Ashby); coefficient ESTIMATE", estimated: true}
+    kelvin:    {C: 0.3, k: 1.5, source: "bending-dominated open-cell scaling (Gibson & Ashby)", estimated: true}
+    honeycomb: {C: 1.0, k: 1.0, source: "out-of-plane honeycomb, stretch-dominated (Gibson & Ashby); coefficient ESTIMATE", estimated: true}
+  cell_size_mm: {min: 4.0, max: 12.0, rule: "about thickness / 2, clamped"}

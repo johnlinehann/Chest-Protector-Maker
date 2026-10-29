@@ -58,4 +58,13 @@ python -m chestforge.optimize.optimizer --name run1 --method all --trials 120 --
 - **Methods:** Optuna TPE (single objective, default mass) → NSGA-II (Pareto) → GP surrogate active learning after ≥ 200 evaluations (also writes an FEA validation queue of uncertain designs near the constraint).
 - **Outputs** in `runs/<name>/`: `evaluations.jsonl` (resumable), `pareto.csv`, `convergence.png`, `pareto.png`, `top5.md` (full ND200 reports, 200-sample MC), `top5/*.yaml` (load with `--design`).
 
-See `docs/PLAN.md` for milestones 5–7.
+## Geometry + export (Milestone 5)
+```bash
+pip install -e .[cad]          # build123d / OpenCascade (~70 MB)
+python -m chestforge.geometry.export --design designs/example_plate_foam.yaml --torso-in 15
+python -m chestforge.geometry.export --run run1 --rank 1      # an optimizer top-5 design
+```
+- Curved pads on a cylindrical chest (radius and silhouette position from ND200 Figure 1, scaled by torso length); outlines wrapped by arc length, so plate sizes match the optimizer.
+- Writes to `exports/<design>/`: `protector.step` (one named solid per layer), `protector.stl` + one STL per layer, `ntop_lattice.json` (TPU gyroid/Kelvin/honeycomb relative density matching each foam's plateau — Gibson & Ashby, **estimated, not simulated**), `landmarks.json` (silhouette + shift circle in 3D for the viewer), `summary.json` (volumes, CAD mass).
+
+See `docs/PLAN.md` for milestones 6–7.

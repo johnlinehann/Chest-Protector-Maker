@@ -25,7 +25,7 @@ search_space:
   zone_clearance_in: 0.25                # cardiac zone = max(plate, silhouette + max shift) + clearance
 
 torso_zone:
-  outline: {cx: 0.0, cy: -1.0, a: 7.0, b: 9.0}
+  outline: {cx: -1.5, cy: -1.0, a: 7.0, b: 9.0}   # centred on the body midline (silhouette centre is 1.5 in left)
   stack:
     - {material: eva_100, thickness_mm: 10}
 

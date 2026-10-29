@@ -14,6 +14,7 @@ chestforge = "chestforge.app:main"
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+cad = ["build123d>=0.13"]   # geometry + STEP/STL export (Milestone 5)
 
 [tool.setuptools.packages.find]
 include = ["chestforge*"]

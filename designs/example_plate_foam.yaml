@@ -8,6 +8,6 @@ zones:
       - {material: pc, thickness_mm: 3, extent: {cx: 0.0, cy: 0.0, a: 3.0, b: 3.5}}
       - {material: poron_xrd_240, thickness_mm: 15}
   - name: torso
-    outline: {cx: 0.0, cy: -1.0, a: 7.0, b: 9.0}
+    outline: {cx: -1.5, cy: -1.0, a: 7.0, b: 9.0}   # centred on the body midline
     stack:
       - {material: eva_100, thickness_mm: 15}

@@ -69,3 +69,5 @@ web/  data/experimental/  tests/
 - M1 complete: 44 tests passing.
 - M2 complete: single-layer pad + ND200 runner, 76 tests passing. Foam-only designs (10-40 mm, 3 estimated foams) all FAIL; plates/load spreading are M3.
 - M3 complete: multi-layer + plates (Winkler/Westergaard spreading), zoned layouts, worst-case shift search, Monte Carlo P95, numba RK4 engine. 100 tests.
+- M4 complete: TPE / NSGA-II / GP-surrogate optimizer with P95 margin constraint, Pareto + top-5 reports.
+- M5 complete: build123d geometry, STEP/STL, nTop lattice JSON, viewer landmarks.
