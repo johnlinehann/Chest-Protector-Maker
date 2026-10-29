@@ -45,6 +45,8 @@ def suggest(trial, cfg: dict) -> dict:
 def canonical(p: dict) -> dict:
     """Normalise so equivalent designs compare equal (no outer foam -> thickness 0)."""
     p = dict(p)
+    for k in ("plate_material", "outer_material", "inner_material"):
+        p[k] = str(p[k])                     # numpy str_ from rng.choice -> plain str (YAML/JSON safe)
     if p["outer_material"] == NONE:
         p["outer_mm"] = 0.0
     for k in ("plate_mm", "plate_a_in", "plate_b_in", "outer_mm", "inner_mm"):

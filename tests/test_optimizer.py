@@ -38,6 +38,7 @@ def test_random_and_mutated_designs_stay_in_space(cfg):
         assert len(features(p, cfg)) == len(features(_design(), cfg))
         assert p["outer_material"] == "none" or p["outer_mm"] > 0
         cardiac_stack(p)   # always buildable
+        assert all(type(p[k]) is str for k in ("plate_material", "outer_material", "inner_material"))
 
 
 def test_every_design_covers_silhouette_plus_shift(cfg):

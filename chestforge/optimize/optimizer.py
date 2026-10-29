@@ -191,7 +191,7 @@ def write_outputs(store: EvalStore, cfg: dict, out: Path, objective: str) -> lis
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="ChestForge design optimizer")
     ap.add_argument("--name", default="run")
-    ap.add_argument("--method", choices=["tpe", "nsga2", "surrogate", "all"], default="all")
+    ap.add_argument("--method", choices=["tpe", "nsga2", "surrogate", "all", "report"], default="all")
     ap.add_argument("--trials", type=int, default=100, help="trials per Optuna method")
     ap.add_argument("--rounds", type=int, default=10, help="surrogate active-learning rounds")
     ap.add_argument("--objective", default="mass_g", choices=list(OBJECTIVE_UNITS), help="TPE single objective")
