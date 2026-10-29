@@ -71,3 +71,4 @@ web/  data/experimental/  tests/
 - M3 complete: multi-layer + plates (Winkler/Westergaard spreading), zoned layouts, worst-case shift search, Monte Carlo P95, numba RK4 engine. 100 tests.
 - M4 complete: TPE / NSGA-II / GP-surrogate optimizer with P95 margin constraint, Pareto + top-5 reports.
 - M5 complete: build123d geometry, STEP/STL, nTop lattice JSON, viewer landmarks.
+- M6 complete: FastAPI + Three.js UI (editor, 3D viewer, ND200 report, optimizer Pareto), PDF/CSV/CAD exports.

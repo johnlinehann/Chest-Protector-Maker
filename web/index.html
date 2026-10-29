@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChestForge</title>
+<link rel="icon" href="/favicon.png">
+<link rel="stylesheet" href="/style.css">
+<script type="importmap">{"imports": {"three": "/vendor/three.module.min.js"}}</script>
+</head>
+<body>
+<header class="top">
+  <div class="brand"><img src="/favicon.png" alt=""><span>ChestForge</span><small>ND200-22m25 commotio cordis designer</small></div>
+  <div class="badge-sim" title="Certification requires accredited lab testing and SEI certification">Simulated — not NOCSAE certified</div>
+</header>
+
+<main class="layout">
+  <section class="panel editor" aria-label="Design editor">
+    <h2>Test setup</h2>
+    <div class="grid2">
+      <label>Projectile <select id="projectile"></select></label>
+      <label>Torso length (in) <input id="torso" type="number" min="8" max="24" step="0.5" value="15"></label>
+      <label>Monte Carlo samples <input id="mc" type="number" min="0" max="500" step="8" value="32"></label>
+      <div class="readout"><span>Max shift (§12.2)</span><b id="maxshift">–</b></div>
+    </div>
+    <div class="row-between"><h2>Layer stack</h2><span class="hint">ball side first · drag ⋮⋮ to reorder</span></div>
+    <label class="full">Design name <input id="dname" maxlength="120"></label>
+    <div id="zones"></div>
+    <div class="actions">
+      <button id="run" class="primary">Run ND200</button>
+    </div>
+    <h2>Export</h2>
+    <div class="actions wrap">
+      <button data-export="cad">STEP / STL / nTop (.zip)</button>
+      <button data-export="pdf">PDF report</button>
+      <button data-export="csv">Traces CSV</button>
+      <button id="savejson">Design YAML/JSON</button>
+    </div>
+    <p id="exportmsg" class="hint" role="status"></p>
+  </section>
+
+  <section class="panel viewer" aria-label="3D view">
+    <div id="three"></div>
+    <div class="viewer-legend">
+      <span><i class="sw plate"></i>plate</span><span><i class="sw foam"></i>cardiac foam</span>
+      <span><i class="sw torso"></i>other zones</span><span><i class="sw sil"></i>cardiac silhouette</span>
+      <span><i class="sw shift"></i>max shift radius</span>
+    </div>
+    <div id="hover3d" class="tip" hidden></div>
+    <div id="geomstatus" class="viewer-status" role="status"></div>
+  </section>
+
+  <section class="panel results" aria-label="Results">
+    <nav class="tabs" role="tablist">
+      <button role="tab" aria-selected="true" data-tab="report">ND200 report</button>
+      <button role="tab" aria-selected="false" data-tab="opt">Optimizer</button>
+    </nav>
+    <div id="tab-report" class="tab">
+      <div id="report"><p class="empty">Edit the stack, then <b>Run ND200</b> to simulate the six Table 1 impacts.</p></div>
+    </div>
+    <div id="tab-opt" class="tab" hidden>
+      <div class="grid2">
+        <label>Run <select id="runsel"></select></label>
+        <div class="readout"><span>Status</span><b id="runstatus">–</b></div>
+      </div>
+      <details class="newrun"><summary>Start a new optimizer run</summary>
+        <div class="grid2">
+          <label>Name <input id="newname" value="ui-run" maxlength="40"></label>
+          <label>Method <select id="newmethod"><option>all</option><option>tpe</option><option>nsga2</option><option>surrogate</option></select></label>
+          <label>Trials / method <input id="newtrials" type="number" value="60" min="4" max="1000"></label>
+          <label>Surrogate rounds <input id="newrounds" type="number" value="5" min="1" max="50"></label>
+        </div>
+        <p class="hint">Search space and margin target: <code>config/optimizer.yaml</code>. Runs keep going in the background.</p>
+        <button id="startrun">Start</button>
+      </details>
+      <div class="grid2">
+        <label>X axis <select id="xobj"></select></label>
+        <label>Y axis <select id="yobj"></select></label>
+      </div>
+      <div id="pareto" class="chart"></div>
+      <p class="hint">Click a point to load that design into the editor.</p>
+      <pre id="runlog" class="log" hidden></pre>
+    </div>
+  </section>
+</main>
+<div id="charttip" class="tip" hidden></div>
+<script type="module" src="/app.js"></script>
+</body>
+</html>

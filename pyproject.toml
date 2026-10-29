@@ -7,13 +7,13 @@ name = "chestforge"
 version = "0.1.0"
 description = "Simulate and optimize catcher chest-protector padding against NOCSAE ND200-22m25. Simulated — not NOCSAE certified."
 requires-python = ">=3.11"
-dependencies = ["numpy>=1.26", "scipy>=1.11", "pyyaml>=6", "pydantic>=2", "numba>=0.61", "optuna>=4", "scikit-learn>=1.4", "matplotlib>=3.8"]
+dependencies = ["numpy>=1.26", "scipy>=1.11", "pyyaml>=6", "pydantic>=2", "numba>=0.61", "optuna>=4", "scikit-learn>=1.4", "matplotlib>=3.8", "fastapi>=0.110", "uvicorn>=0.29"]
 
 [project.scripts]
 chestforge = "chestforge.app:main"
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "httpx>=0.27"]
 cad = ["build123d>=0.13"]   # geometry + STEP/STL export (Milestone 5)
 
 [tool.setuptools.packages.find]

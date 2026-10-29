@@ -132,3 +132,38 @@ def shift_candidates(max_shift_in: float, min_radius_in: float, step_in: float =
             th = 2 * math.pi * k / n_angles
             out.append((round(r * math.cos(th), 6), round(r * math.sin(th), 6)))
     return out
+
+
+def protector_metrics(prot: Protector, cell_in: float = 0.1) -> dict:
+    """Mass (grid integration over all bounded zones; plates only inside their extent) plus the
+    cardiac-zone stack thickness and summed bending stiffness."""
+    from chestforge.core.padding import FoamLayer
+    bounded = [z for z in prot.zones if z.outline.a < FAR_IN]
+    mass_g = None
+    if bounded and len(bounded) == len(prot.zones):
+        x0 = min(z.outline.cx - z.outline.a for z in bounded)
+        x1 = max(z.outline.cx + z.outline.a for z in bounded)
+        y0 = min(z.outline.cy - z.outline.b for z in bounded)
+        y1 = max(z.outline.cy + z.outline.b for z in bounded)
+        xs = np.arange(x0 + cell_in / 2, x1, cell_in)
+        ys = np.arange(y0 + cell_in / 2, y1, cell_in)
+        X, Y = np.meshgrid(xs, ys)
+        areal = np.zeros_like(X)
+        claimed = np.zeros(X.shape, dtype=bool)
+        for z in prot.zones:
+            o = z.outline
+            inside = (((X - o.cx) / o.a) ** 2 + ((Y - o.cy) / o.b) ** 2 <= 1.0) & ~claimed
+            for lay in z.stack:
+                cover = inside
+                if isinstance(lay, PlateLayer) and lay.extent is not None:
+                    e = lay.extent
+                    cover = inside & (((X - e.cx) / e.a) ** 2 + ((Y - e.cy) / e.b) ** 2 <= 1.0)
+                areal[cover] += lay.areal_mass_kg_m2
+            claimed |= inside
+        mass_g = float(areal.sum() * (cell_in * IN_TO_M) ** 2 * 1000)
+    z = prot.zone_at(0.0, 0.0)
+    stack = z.stack if z else ()
+    bending = sum(l.bending_stiffness if isinstance(l, PlateLayer)
+                  else l.material.E_Pa * l.thickness_m**3 / 12.0 for l in stack if isinstance(l, (PlateLayer, FoamLayer)))
+    return {"mass_g": mass_g, "cardiac_thickness_mm": sum(l.thickness_m for l in stack) * 1000,
+            "cardiac_bending_Nm": bending}

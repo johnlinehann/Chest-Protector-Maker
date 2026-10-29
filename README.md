@@ -6,10 +6,18 @@ Simulate and optimize catcher chest-protector padding against **NOCSAE DOC (ND) 
 
 ## Quick start
 ```bash
-pip install -e .[dev]
-python -m chestforge.core.calibration   # fit + verify the NTS model (required before any design run)
+pip install -e .[dev,cad]
+chestforge                               # calibrates if needed, then opens the UI at http://127.0.0.1:8765
 pytest -q
 ```
+
+## Web UI (Milestone 6)
+- **3D viewer** (Three.js, vendored — works offline): protector layers on a chest model, cardiac silhouette (red) and max-shift radius (green, dashed); hover a layer for material and mass.
+- **Layer-stack editor:** zones, layers (ball side first), drag ⋮⋮ or focus it and press ↑/↓ to reorder, plate extents.
+- **Run ND200:** 6-impact report card — nominal and P95 verdicts, margins, flags, CFC120 force-time charts with hover values.
+- **Optimizer tab:** pick a run or start one, live Pareto chart (any two objectives), click a point to load the design.
+- **Exports:** STEP/STL/nTop zip, test-style PDF report, CSV of traces, design JSON (loads with `--design`).
+- Server: `python -m chestforge.server` (localhost only). `chestforge --no-ui` shows the status console only.
 
 ## Desktop icon
 After the quick start, run once with the same Python:
@@ -67,4 +75,4 @@ python -m chestforge.geometry.export --run run1 --rank 1      # an optimizer top
 - Curved pads on a cylindrical chest (radius and silhouette position from ND200 Figure 1, scaled by torso length); outlines wrapped by arc length, so plate sizes match the optimizer.
 - Writes to `exports/<design>/`: `protector.step` (one named solid per layer), `protector.stl` + one STL per layer, `ntop_lattice.json` (TPU gyroid/Kelvin/honeycomb relative density matching each foam's plateau — Gibson & Ashby, **estimated, not simulated**), `landmarks.json` (silhouette + shift circle in 3D for the viewer), `summary.json` (volumes, CAD mass).
 
-See `docs/PLAN.md` for milestones 6–7.
+See `docs/PLAN.md` for milestone 7.

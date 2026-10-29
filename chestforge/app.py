@@ -1,7 +1,4 @@
-"""Desktop entry point: make sure the NTS is calibrated, then show status.
-
-The web UI (Milestone 6) will be launched from here; until then this is a status console.
-"""
+"""Desktop entry point: make sure the NTS is calibrated, then open the ChestForge web UI."""
 
 from __future__ import annotations
 
@@ -26,14 +23,19 @@ def run() -> int:
         if calibration.main() != 0:
             print("\nCalibration FAILED — design runs are blocked until it passes.")
             return 1
-    print("\nRun a design:  python -m chestforge.core.nd200_runner --layer pc:3 --layer poron_xrd_240:15 --torso-in 15 --mc 100")
-    print("Optimize:      python -m chestforge.optimize.optimizer --name run1 --method all --trials 120")
-    print("Materials: config/materials.yaml. The 3D UI arrives in Milestone 6.")
+    print("\nCLI:  python -m chestforge.core.nd200_runner --layer pc:3 --layer poron_xrd_240:15 --torso-in 15 --mc 100")
+    print("      python -m chestforge.optimize.optimizer --name run1 --method all --trials 120")
     return 0
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    """Calibrate if needed, then open the web UI (pass --no-ui for the status console only)."""
+    argv = sys.argv[1:] if argv is None else argv
     code = run()
+    if code == 0 and "--no-ui" not in argv:
+        from chestforge.server import main as serve
+        serve()
+        return 0
     if sys.stdin is not None and sys.stdin.isatty():  # keep the shortcut's window open
         input("\nPress Enter to close...")
     return code
